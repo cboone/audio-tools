@@ -1,8 +1,12 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["matplotlib", "numpy", "scipy"]
+# ///
 """
-nulltest.py — is B a bit-transparent pass-through of A?
+nulltest.py: is B a bit-transparent pass-through of A?
 
-Usage:  python3 nulltest.py source.wav bounced.wav [-o out.png]
+Usage:  uv run nulltest.py source.wav bounced.wav [-o out.png]
 
 Intended for questions like "does Logic's Sampler alter my sample when every
 control is nominally off?" The philosophy differs from a general A/B compare:
@@ -10,10 +14,24 @@ time offset and gain are MEASURED and REPORTED, not silently corrected, because
 in a transparency test they are findings rather than nuisances.
 
 The four things it separates:
-  * bit-identity          — the only unambiguous pass
-  * integer-sample lag    — playback start offset / PDC, harmless in itself
-  * fractional lag        — a tell-tale of resampling or transposition
-  * gain and filtering    — via a direct estimate of the transfer function B/A
+  * bit-identity          the only unambiguous pass
+  * integer-sample delay  playback start offset / PDC, harmless in itself
+  * fractional delay      a tell-tale of resampling or transposition
+  * gain and filtering    via a direct estimate of the transfer function B/A
+
+Two conventions, held to throughout:
+
+  SIGN. Positive delay means the bounce arrives LATE relative to the source.
+  Both the integer and the fractional figure use this, so they can be read
+  together and added.
+
+  CHANNELS. Every channel is analyzed separately and nothing is downmixed. A
+  pan-law error or a one-sided polarity flip is exactly the kind of finding
+  that averaging the channels together would hide.
+
+`soundfile` is used when installed and `scipy.io.wavfile` otherwise. Both paths
+scale integer PCM by 2**(bits-1), so a verdict never depends on which library
+happens to be present.
 """
 
 import argparse
@@ -30,29 +48,39 @@ EPS = 1e-20
 # ---------------------------------------------------------------- loading
 
 def load(path):
-    """Return (float64 samples in [-1,1] as (n, channels), sample_rate, raw).
+    """Return (samples as (n, channels) float64 in [-1, 1], sample rate, subtype).
 
-    `raw` is the untouched array as stored, kept so we can test bit-identity
-    before any conversion has a chance to introduce rounding of its own."""
+    Integer PCM is divided by 2**(bits-1) on both backends. scipy's own
+    convention is to divide by iinfo.max, which is 2**(bits-1) - 1: a half-LSB
+    difference, but enough to make a bit-identity test depend on which library
+    happened to be importable. The conversion is exact either way, so comparing
+    the float64 results is still a true test of sample equality.
+
+    The stored subtype is returned rather than a raw array. A 24-bit source and
+    a 32-bit float bounce holding the same values differ in format but not in
+    signal, and for a transparency test that is a pass, not a failure."""
     try:
         import soundfile as sf
         x, sr = sf.read(path, always_2d=True, dtype="float64")
-        return x, sr, x
+        return x, sr, sf.info(path).subtype
     except ImportError:
         from scipy.io import wavfile
         sr, raw = wavfile.read(path)
         if raw.ndim == 1:
             raw = raw[:, None]
-        if np.issubdtype(raw.dtype, np.integer):
-            x = raw.astype(np.float64) / np.iinfo(raw.dtype).max
+        if raw.dtype == np.uint8:                      # 8-bit PCM is unsigned
+            x = (raw.astype(np.float64) - 128.0) / 128.0
+        elif np.issubdtype(raw.dtype, np.integer):
+            x = raw.astype(np.float64) / (np.iinfo(raw.dtype).max + 1.0)
         else:
             x = raw.astype(np.float64)
-        return x, sr, raw
+        return x, sr, str(raw.dtype)
 
 
 def db(x):
     """Amplitude ratio to dB with a floor, so digital silence reads as -240
-    rather than -inf and doesn't blow up the plot limits."""
+    rather than -inf and doesn't blow up the plot limits. NaN is preserved, so
+    bins deliberately excluded from an estimate stay excluded."""
     return 20.0 * np.log10(np.maximum(np.abs(x), 1e-12))
 
 
@@ -62,37 +90,47 @@ def rms(x):
 
 # ---------------------------------------------------------------- alignment
 
-def integer_lag(a, b):
-    """Lag in whole samples that best aligns b to a, by FFT cross-correlation.
+def integer_delay(a, b):
+    """Delay of b relative to a in whole samples, by FFT cross-correlation.
 
-    Zero-padded to len(a)+len(b) so the circular convolution implicit in the
-    FFT does not wrap the tail of the correlation onto its head."""
+    Positive means b arrives late. Zero-padded to len(a)+len(b) so the circular
+    convolution implicit in the FFT does not wrap the tail of the correlation
+    onto its head. The peak is taken on |xc| so a polarity-inverted bounce still
+    aligns on its (negative) main peak instead of locking onto a sidelobe."""
     n = 1 << int(np.ceil(np.log2(len(a) + len(b))))
     xc = np.fft.irfft(np.fft.rfft(a, n) * np.conj(np.fft.rfft(b, n)), n)
     k = int(np.argmax(np.abs(xc)))
-    return k - n if k > n // 2 else k
+    shift = k - n if k > n // 2 else k
+    return -shift
 
 
-def shift_and_trim(a, b, lag):
-    if lag > 0:
-        b = np.concatenate([np.zeros(lag), b])
-    elif lag < 0:
-        b = b[-lag:]
+def align(a, b, delay):
+    """Strip b's lead-in (or pad it) so the two line up, then trim to a common
+    length. Accepts 1-D mono or (n, channels) arrays."""
+    if delay > 0:
+        b = b[delay:]
+    elif delay < 0:
+        b = np.concatenate([np.zeros((-delay,) + b.shape[1:], dtype=b.dtype), b])
     n = min(len(a), len(b))
     return a[:n], b[:n]
 
 
-def fractional_lag(a, b, sr, floor_db=-60.0):
-    """Estimate any residual sub-sample delay of b relative to a.
+def fractional_delay(a, b, sr, floor_db=-60.0):
+    """Estimate any residual sub-sample delay of b relative to a, in seconds.
 
-    If b(t) = a(t - tau) then B(f) = A(f)·exp(-j2*pi*f*tau), so the cross
-    spectrum A·conj(B) has phase +2*pi*f*tau — a straight line through the
-    origin whose slope gives tau directly. Run this only AFTER integer
-    alignment: with |tau| < 1 sample the phase stays inside +/-pi even at
-    Nyquist, so there is nothing to unwrap and the fit is robust.
+    If b(t) = a(t - tau) then B(f) = A(f)*exp(-j2*pi*f*tau), so the cross
+    spectrum A*conj(B) has phase +2*pi*f*tau: a straight line through the origin
+    whose slope gives tau directly. Run this only AFTER integer alignment. With
+    |tau| < 1 sample the phase stays inside +/-pi even at Nyquist, so there is
+    nothing to unwrap and the fit is robust.
 
-    Weighted by |A|^2 so bins where the source has no energy — and therefore
-    only noise-driven phase — contribute nothing."""
+    Deliberately unwindowed. Windowing would suppress the edge discontinuity but
+    would also break the exact b = delayed(a) relation inside the window, and
+    measurement against known delays shows the unwindowed fit recovers tau to
+    four decimal places.
+
+    Weighted by |A|^2 so bins where the source has no energy, and therefore only
+    noise-driven phase, contribute nothing."""
     n = len(a)
     A, B = np.fft.rfft(a), np.fft.rfft(b)
     f = np.fft.rfftfreq(n, 1.0 / sr)
@@ -111,9 +149,13 @@ def transfer_function(a, b, sr, floor_db=-60.0):
     """Estimate H = B/A where the source actually has energy.
 
     Dividing spectra is only meaningful above the source's own noise floor;
-    elsewhere you are dividing noise by noise and get garbage that dominates
-    the plot. A Hann window keeps each partial's leakage skirt from smearing
-    energy into neighbouring bins and faking content that isn't there."""
+    elsewhere you are dividing noise by noise and get garbage that dominates the
+    plot. A Hann window keeps each partial's leakage skirt from smearing energy
+    into neighboring bins and faking content that isn't there.
+
+    Excluded bins are left as NaN rather than dropped, so a plot of the result
+    breaks the trace across the gaps instead of drawing a straight line over
+    them."""
     w = np.hanning(len(a))
     A, B = np.fft.rfft(a * w), np.fft.rfft(b * w)
     f = np.fft.rfftfreq(len(a), 1.0 / sr)
@@ -121,72 +163,77 @@ def transfer_function(a, b, sr, floor_db=-60.0):
     keep = db(mag / max(mag.max(), EPS)) > floor_db
     H = np.full(len(f), np.nan, dtype=complex)
     H[keep] = B[keep] / A[keep]
-    return f, H, keep
+    return f, H
 
 
-# ---------------------------------------------------------------- main
+# ---------------------------------------------------------------- analysis
 
-def main():
-    p = argparse.ArgumentParser()
-    p.add_argument("a", help="source wav (what you fed the sampler)")
-    p.add_argument("b", help="bounced wav (what came back out)")
-    p.add_argument("-o", "--out", default="nulltest.png")
-    p.add_argument("--floor", type=float, default=-60.0,
-                   help="dB below source peak spectrum to ignore (default -60)")
-    args = p.parse_args()
+def channel_pairs(xa, xb):
+    """Decide which channel of the source to compare against which of the bounce.
 
-    xa, sra, rawa = load(args.a)
-    xb, srb, rawb = load(args.b)
-    if sra != srb:
-        sys.exit(f"sample rates differ: {sra} vs {srb} — that alone is the answer")
-    sr = sra
+    A mono sample coming back as a stereo bounce is a normal sampler outcome
+    rather than an error, so the single source channel is compared against each
+    bounce channel separately."""
+    na, nb = xa.shape[1], xb.shape[1]
+    if na == 1 and nb > 1:
+        return [(f"ch{j}", xa[:, 0], xb[:, j]) for j in range(nb)]
+    if nb == 1 and na > 1:
+        return [(f"ch{i}", xa[:, i], xb[:, 0]) for i in range(na)]
+    n = min(na, nb)
+    names = ["mono"] if n == 1 else [f"ch{i}" for i in range(n)]
+    return [(names[i], xa[:, i], xb[:, i]) for i in range(n)]
 
-    # --- bit-identity, tested before anything else touches the data --------
-    if (rawa.shape == rawb.shape and rawa.dtype == rawb.dtype
-            and np.array_equal(rawa, rawb)):
-        print("VERDICT: bit-identical. The sampler is transparent.")
-        return
 
-    a = xa.mean(axis=1)
-    b = xb.mean(axis=1)
-    print(f"lengths          : {len(a)} vs {len(b)} samples @ {sr} Hz")
+def analyze(a, b, sr, floor_db):
+    """Scalar findings for one already-aligned channel pair.
 
-    lag = integer_lag(a, b)
-    a, b = shift_and_trim(a, b, lag)
-    tau = fractional_lag(a, b, sr, args.floor)
+    Two different gain numbers, because they answer different questions and
+    conflating them is how a level drop gets reported as a boost:
 
-    # Projection of a onto b: the single scalar closest to explaining b as a
-    # rescaled a. Reported, deliberately NOT applied.
-    g = float(np.dot(a, b) / max(np.dot(b, b), EPS))
-    corr = float(np.dot(a, b) / max(np.sqrt(np.dot(a, a) * np.dot(b, b)), EPS))
+    `level` is the plain RMS ratio, which is what "how much louder or quieter
+    is the bounce" actually means. It is unbiased whatever else changed.
 
+    `fit` is the least-squares scalar h minimizing ||b - h*a||, that is, the
+    single number that best explains the bounce as a rescaled source. It equals
+    correlation * level, so it is pulled toward zero by anything a scalar cannot
+    account for. When correlation is 1 the two agree exactly; when it is not,
+    the gap between them is itself the message that no scalar explains this."""
     resid = a - b
-    rel = db(rms(resid)) - db(rms(a))
+    ra = rms(a)
+    return {
+        "tau": fractional_delay(a, b, sr, floor_db),
+        "level": db(rms(b)) - db(ra),
+        "fit": float(np.dot(a, b) / max(np.dot(a, a), EPS)),
+        "corr": float(np.dot(a, b)
+                      / max(np.sqrt(np.dot(a, a) * np.dot(b, b)), EPS)),
+        "resid": resid,
+        "rel": db(rms(resid)) - db(ra),
+        "a": a,
+        "b": b,
+    }
 
-    print(f"integer lag      : {lag} samples ({1000.0*lag/sr:+.4f} ms)")
-    print(f"residual sub-lag : {tau*sr:+.4f} samples ({tau*1e6:+.2f} us)")
-    print(f"gain fit (a->b)  : {db(1.0/g):+.4f} dB")
-    print(f"correlation      : {corr:+.8f}")
-    print(f"residual RMS     : {db(rms(resid)):.1f} dBFS  ({rel:+.1f} dB rel. source)")
-    print(f"residual peak    : {db(np.max(np.abs(resid))):.1f} dBFS")
-    if abs(tau * sr) > 0.1:
-        print("  note: a sub-sample offset this large implies resampling or "
-              "transposition — or a minimum-phase filter, whose group delay "
-              "registers the same way. Check the |B/A| panel to tell them apart.")
 
-    # ------------------------------------------------------------- plotting
+# ---------------------------------------------------------------- plotting
+
+def plot(r, sr, delay, floor_db, out):
+    a, b, resid = r["a"], r["b"], r["resid"]
     t = np.arange(len(a)) / sr * 1000.0
     fig, ax = plt.subplots(2, 2, figsize=(13, 7.5))
+    fig.suptitle(f"{r['label']}: residual {db(rms(resid)):.1f} dBFS "
+                 f"({r['rel']:+.1f} dB rel. source), "
+                 f"level {r['level']:+.3f} dB, "
+                 f"delay {delay:+d} {r['tau'] * sr:+.3f} samples",
+                 fontsize=10)
 
     ax[0, 0].plot(t, a, lw=0.8, label="source")
     ax[0, 0].plot(t, b, lw=0.8, alpha=0.7, label="bounce")
-    ax[0, 0].set(title=f"Overlay after {lag}-sample alignment",
+    ax[0, 0].set(title=f"Overlay after {delay:+d}-sample alignment",
                  xlabel="ms", ylabel="amplitude")
     ax[0, 0].legend(fontsize=8)
 
     ax[0, 1].plot(t, resid, lw=0.8, color="crimson")
-    ax[0, 1].set(title=f"Residual, peak {db(np.max(np.abs(resid))):.1f} dBFS "
-                       f"({rel:+.1f} dB rel. source)", xlabel="ms")
+    ax[0, 1].set(title=f"Residual, peak {db(np.max(np.abs(resid))):.1f} dBFS",
+                 xlabel="ms")
     ax[0, 1].set_ylim(ax[0, 0].get_ylim())   # same scale, so small looks small
 
     # Residual spectrum against the source, with a 6 dB/oct guide. A residual
@@ -207,14 +254,26 @@ def main():
                  xlim=(20, sr / 2), ylim=(-160, 5))
     ax[1, 0].legend(fontsize=8)
 
-    fh, H, keep = transfer_function(a, b, sr, args.floor)
+    fh, H = transfer_function(a, b, sr, floor_db)
+    mag = db(np.abs(H))
     axr = ax[1, 1]
-    axr.semilogx(fh[keep], db(np.abs(H[keep])), lw=0.7, color="navy")
+    axr.semilogx(fh, mag, lw=0.7, color="navy")
     axr.axhline(0.0, ls=":", lw=0.9, color="gray")
+
+    # Autoscale, floored at +/-6 dB so a transparent result still reads as a
+    # flat line on a meaningful scale rather than being zoomed into its own
+    # rounding noise. Fixing the limits at +/-6 would instead push an SRC
+    # anti-imaging cliff, the whole point of this panel, off the bottom.
+    finite = mag[np.isfinite(mag)]
+    if finite.size:
+        lo = max(-120.0, min(-6.0, float(np.floor(finite.min() / 6.0) * 6.0)))
+        hi = min(60.0, max(6.0, float(np.ceil(finite.max() / 6.0) * 6.0)))
+    else:
+        lo, hi = -6.0, 6.0
     axr.set(title="Estimated transfer function |B/A| (flat 0 dB = transparent)",
-            xlabel="Hz", ylabel="dB", xlim=(20, sr / 2), ylim=(-6, 6))
+            xlabel="Hz", ylabel="dB", xlim=(20, sr / 2), ylim=(lo, hi))
     axp = axr.twinx()
-    axp.semilogx(fh[keep], np.degrees(np.angle(H[keep])), lw=0.5,
+    axp.semilogx(fh, np.degrees(np.angle(H)), lw=0.5,
                  color="darkorange", alpha=0.6)
     axp.set_ylabel("phase (deg)", color="darkorange")
     axp.set_ylim(-180, 180)
@@ -222,9 +281,104 @@ def main():
     for row in ax:
         for cell in row:
             cell.grid(alpha=0.25)
-    fig.tight_layout()
-    fig.savefig(args.out, dpi=140)
-    print(f"wrote {args.out}")
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(out, dpi=140)
+    print(f"\nwrote {out}")
+
+
+# ---------------------------------------------------------------- main
+
+def main():
+    p = argparse.ArgumentParser(
+        description="Measure whether a bounce is a transparent pass-through "
+                    "of its source.")
+    p.add_argument("a", help="source wav (what you fed the sampler)")
+    p.add_argument("b", help="bounced wav (what came back out)")
+    p.add_argument("-o", "--out", default="nulltest.png")
+    p.add_argument("--floor", type=float, default=-60.0,
+                   help="dB below source peak spectrum to ignore (default -60)")
+    args = p.parse_args()
+
+    xa, sra, suba = load(args.a)
+    xb, srb, subb = load(args.b)
+    if sra != srb:
+        sys.exit(f"sample rates differ: {sra} vs {srb}. That alone is the answer.")
+    sr = sra
+
+    print(f"source           : {len(xa)} samples, {xa.shape[1]} ch, {sr} Hz, {suba}")
+    print(f"bounce           : {len(xb)} samples, {xb.shape[1]} ch, {sr} Hz, {subb}")
+    if suba != subb:
+        print("  note: stored formats differ, which is not by itself a change "
+              "to the signal.")
+    if min(len(xa), len(xb)) < 64:
+        sys.exit("files are too short to analyze")
+
+    # --- bit-identity, tested before anything else touches the data --------
+    if xa.shape == xb.shape and np.array_equal(xa, xb):
+        print("\nVERDICT: bit-identical. The sampler is transparent.")
+        return
+
+    delay = integer_delay(xa.mean(axis=1), xb.mean(axis=1))
+    xa, xb = align(xa, xb, delay)
+    print(f"integer delay    : {delay:+d} samples "
+          f"({1000.0 * delay / sr:+.4f} ms)   [+ = bounce late]")
+
+    # A bounce region that runs past the end of the sample is routine, so a
+    # length difference alone must not cost a pass. Re-test on the overlap.
+    if xa.shape == xb.shape and np.array_equal(xa, xb):
+        if delay:
+            print(f"\nVERDICT: bit-identical once a {delay:+d}-sample offset is "
+                  "removed. The sampler is transparent; the offset is playback "
+                  "start position or plugin delay compensation.")
+        else:
+            print(f"\nVERDICT: bit-identical across all {len(xa)} overlapping "
+                  "samples. The sampler is transparent; the files differ only "
+                  "in length, which is the bounce region running past the "
+                  "end of the sample.")
+        return
+
+    results = []
+    for label, ca, cb in channel_pairs(xa, xb):
+        r = analyze(ca, cb, sr, args.floor)
+        r["label"] = label
+        results.append(r)
+        print(f"\n{label}")
+        print(f"  fractional delay : {r['tau'] * sr:+.4f} samples "
+              f"({r['tau'] * 1e6:+.2f} us)")
+        print(f"  level (rms b/a)  : {r['level']:+.4f} dB")
+        print(f"  best-fit gain    : {db(r['fit']):+.4f} dB"
+              f"{'  (polarity inverted)' if r['fit'] < 0 else ''}")
+        print(f"  correlation      : {r['corr']:+.8f}")
+        print(f"  residual RMS     : {db(rms(r['resid'])):.1f} dBFS  "
+              f"({r['rel']:+.1f} dB rel. source)")
+        print(f"  residual peak    : {db(np.max(np.abs(r['resid']))):.1f} dBFS")
+
+    worst = max(results, key=lambda r: r["rel"])
+    print(f"\nVERDICT: not transparent. Largest residual is "
+          f"{db(rms(worst['resid'])):.1f} dBFS on {worst['label']}, "
+          f"{worst['rel']:+.1f} dB relative to the source.")
+
+    flipped = [r["label"] for r in results if r["corr"] < 0]
+    if flipped:
+        print(f"  polarity inverted on {', '.join(flipped)}. The residual there "
+              "is the sum of the two signals rather than their difference, so "
+              "it reads about 6 dB high.")
+    if any(abs(r["tau"] * sr) > 0.1 for r in results):
+        print("  a sub-sample offset this large implies resampling or "
+              "transposition, or else a minimum-phase filter, whose group delay "
+              "registers the same way. Check the |B/A| panel to tell them apart.")
+    if any(abs(r["corr"]) < 0.9999 for r in results):
+        print("  correlation is short of 1, so no single scalar gain explains "
+              "the bounce. Read the |B/A| panel rather than the gain figures.")
+    if xa.shape[1] != xb.shape[1]:
+        print(f"  channel counts differ ({xa.shape[1]} source, {xb.shape[1]} "
+              "bounce), so the single source channel was compared against each "
+              "bounce channel in turn.")
+    if len(results) > 1:
+        print(f"  plotting {worst['label']}, the channel with the largest "
+              "residual.")
+
+    plot(worst, sr, delay, args.floor, args.out)
 
 
 if __name__ == "__main__":

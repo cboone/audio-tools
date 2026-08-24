@@ -14,18 +14,21 @@ Written against Logic Pro's Sampler and Quick Sampler, but nothing in the analys
 
 ## Usage
 
-Dependencies are `numpy`, `scipy`, and `matplotlib`. `soundfile` is used if present, and the scripts fall back to `scipy.io.wavfile` without it.
+Both scripts carry [PEP 723](https://peps.python.org/pep-0723/) inline dependency metadata, so `uv` builds the environment on first run and there is nothing to install.
 
 ```bash
 # Generate probes at your project's sample rate.
-uv run --with numpy --with scipy maketest.py --sr 44100 --outdir probe-44100
+uv run maketest.py --sr 44100 --outdir probe-44100
 
 # Compare a bounce against the source that produced it.
-uv run --with numpy --with scipy --with matplotlib \
-  nulltest.py source.wav bounced.wav -o nulltest.png
+uv run nulltest.py source.wav bounced.wav -o nulltest.png
 ```
 
+Both are executable, so `./nulltest.py source.wav bounced.wav` works as well.
+
 `nulltest.py` prints its findings and writes a four-panel PNG. `--floor` sets the level below the source's own spectral peak at which a bin stops counting as signal, default -60 dB.
+
+`soundfile` is used for file reading when it happens to be installed, and `scipy.io.wavfile` otherwise. Both paths scale integer PCM by the same factor, so a verdict never depends on which one is present.
 
 The committed `probe/` directory is 48 kHz. Point `--outdir` somewhere else when generating at another rate, rather than mixing rates in one directory.
 
@@ -35,7 +38,7 @@ A null test is not a general A/B comparison, and the difference matters. In a ge
 
 Four things get separated.
 
-**Bit-identity.** Checked first, on the arrays as loaded, before alignment or any other processing. This is the only unambiguous pass. Everything below is forensics on a failure.
+**Bit-identity.** Checked first on the arrays as loaded, then again on the overlapping region after integer alignment. A bounce region that runs past the end of the sample is routine, so a length difference alone must not cost a pass. A difference in stored format must not either: a 24-bit source and a 32-bit float bounce holding the same values differ in container, not in signal. This is the only unambiguous pass. Everything below is forensics on a failure.
 
 **Integer-sample lag.** Found by FFT cross-correlation. Harmless in itself: it is playback start offset or plugin delay compensation.
 
@@ -53,7 +56,21 @@ A pure gain error gives a residual that is a scaled copy of the source spectrum,
 
 `H = B/A` is only defined where `A` has energy. A kick sample has essentially everything below a few hundred Hz plus a brief click, so it cannot tell you what the sampler does at 8 kHz. Load `probe/probe_noise.wav` into the sampler with the settings under test and bounce that: noise excites every bin and the transfer function becomes fully defined. Characterize the instrument with the probe first, then run the real sample through as confirmation.
 
-When the transfer function is not flat, the scalar gain figure the script prints is meaningless, because one number cannot describe a frequency-dependent change. Read the panel instead.
+When the transfer function is not flat, no single gain figure can describe what happened, because one number cannot summarize a frequency-dependent change. Read the panel instead.
+
+## Reading the output
+
+Delays are signed so that **positive means the bounce arrives late**, and both the integer and the fractional figure use that convention, so they can be read together and added.
+
+Every channel is reported separately and nothing is downmixed, because a pan-law error or a one-sided polarity flip is exactly what averaging the channels together would hide. When the channel counts differ, which is what a mono sample played through a stereo instrument gives you, the single source channel is compared against each bounce channel in turn. The plot shows whichever channel has the largest residual.
+
+There are two gain figures, and they answer different questions.
+
+**`level (rms b/a)`** is the plain RMS ratio. It stays unbiased whatever else changed, so it is the real answer to "how much louder or quieter is the bounce".
+
+**`best-fit gain`** is the least-squares scalar `h` minimizing `norm(b - h*a)`: the single number that best explains the bounce as a rescaled source. It works out to `correlation * level`, so anything a scalar cannot account for pulls it toward zero.
+
+When correlation reads `1.00000000` the two agree and either one is the answer. When it does not, the gap between them is itself the finding, and the script says so. A 16 kHz lowpass reports a level of `-1.77 dB` against a best-fit gain of `-4.93 dB`, and neither number is a useful summary of what a brick-wall filter did. Read `|B/A|` instead.
 
 ## Logic-side checklist
 
@@ -78,14 +95,9 @@ Channel strip and bounce:
 
 You can null without exporting. Put the original file on one audio track at unity and the sampler on another, add a Gain plugin with polarity inverted on one of them, and sum. If the meter does not hit -inf, something is happening, and the reading tells you roughly how much. Use the scripts when you need to know *what*.
 
-## Known issues
+## Limitations
 
-Confirmed by running the scripts against synthetic source/bounce pairs. The analysis itself is sound; these are reporting defects, and none of them affect the residual, which is computed correctly in every case tested.
-
-- **`gain fit (a->b)` is biased upward and can invert the sign of a real level change.** The printed figure works out to `db(rms(b)/rms(a)) - db(correlation)`, and the second term is always positive, so any decorrelation inflates it. A 16 kHz lowpass that actually drops level by 1.76 dB reports `+1.39 dB`. A pure fractional delay, which changes level not at all, reports `+0.92 dB`. The figure is only trustworthy when correlation reads `1.00000000`.
-- **`integer lag` uses the opposite sign convention from `residual sub-lag`.** A bounce arriving 100 samples late reports `integer lag: -100 samples`, while a bounce 0.25 samples late reports `residual sub-lag: +0.2500 samples`. Both describe the same physical direction. The alignment itself is correct; only the printed sign misleads.
-- **The `|B/A|` panel is hard-clipped to plus or minus 6 dB.** A filter cliff, the exact signature the method tells you to look for, runs off the bottom of the axis. You can see that a cliff starts but not how deep or how steep it gets.
-- **Bit-identity requires equal array lengths.** A bounce with trailing silence, which is routine in Logic, never earns the bit-identical verdict even when every overlapping sample is exact. It reports a residual RMS of -240 dBFS instead, which is the same finding stated less clearly.
-- **Polarity inversion has no named verdict.** It shows up only as `correlation: -1.00000000`, alongside a gain fit of `+0.0000 dB` that reads as a pass.
-- **Stereo files are mean-downmixed before analysis.** Anything channel-dependent, including the pan-law error the checklist above warns about, partly or wholly cancels in the mean.
-- **The `raw` array used for the bit-identity check is not raw when `soundfile` is installed.** It is the float64 conversion, so the accompanying dtype guard is a no-op on that path. An int16 file and a float32 file holding equal values are called bit-identical with `soundfile` present and not without it.
+- `|B/A|` comes from a single FFT over the whole file rather than a Welch average, so the estimate is noisy for short or non-stationary sources. The probe signals are long and stationary precisely to avoid this.
+- The transfer function is a linear model. Nonlinearity such as clipping or saturation lifts the residual without producing any clean `H` to read, so the signature to watch for is an elevated residual alongside a flat `|B/A|` and a correlation short of 1.
+- The integer delay is measured once from the channel mean and applied to every channel. Per-channel delay differences beyond that get absorbed into each channel's fractional figure, which is only meaningful within plus or minus one sample.
+- The overlay and residual panels plot the whole file, which is a solid block for anything long and stationary. For a noise probe the printed numbers carry the finding, not those two panels.

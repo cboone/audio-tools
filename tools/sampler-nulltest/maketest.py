@@ -1,8 +1,12 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["numpy", "scipy"]
+# ///
 """
-maketest.py — generate probe signals for a sampler transparency test.
+maketest.py: generate probe signals for a sampler transparency test.
 
-Usage:  python3 maketest.py [--sr 48000] [--outdir .]
+Usage:  uv run maketest.py [--sr 48000] [--outdir .]
 
 Writes three 32-bit float WAVs:
 
@@ -17,9 +21,9 @@ Writes three 32-bit float WAVs:
                     of this into a longer blob is direct visual evidence of
                     filtering or resampling.
 
-32-bit float is deliberate: it removes quantisation from the comparison
+32-bit float is deliberate: it removes quantization from the comparison
 entirely, so anything the null test finds came from the sampler and not from
-the file format. Match --sr to your Logic project's sample rate — a mismatch
+the file format. Match --sr to your Logic project's sample rate. A mismatch
 forces sample rate conversion and is itself the most common cause of a failed
 transparency test.
 """
@@ -62,7 +66,7 @@ def log_sweep(sr, seconds=8.0, f0=20.0, peak_dbfs=-6.0):
     """Exponential (log) sine sweep from f0 to just below Nyquist.
 
     Instantaneous frequency rises geometrically, so the phase is the integral
-    of that exponential — hence the closed form below rather than a naive
+    of that exponential, hence the closed form below rather than a naive
     cumulative sum. Stopping at 0.95*Nyquist avoids the sweep running into the
     anti-alias region where any reconstruction filter, including a correct
     one, will legitimately attenuate."""
@@ -76,7 +80,7 @@ def log_sweep(sr, seconds=8.0, f0=20.0, peak_dbfs=-6.0):
 
 
 def click(sr, seconds=0.5, peak_dbfs=-6.0):
-    """One nonzero sample, centred in silence: a discrete-time impulse.
+    """One nonzero sample, centered in silence: a discrete-time impulse.
 
     Its spectrum is flat by construction, and its time-domain response after
     passing through the sampler is literally the impulse response of whatever
