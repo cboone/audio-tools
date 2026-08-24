@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["matplotlib", "numpy", "scipy"]
+# dependencies = ["matplotlib", "numpy", "scipy", "soundfile"]
 # ///
 """
 nulltest.py: is B a bit-transparent pass-through of A?
@@ -29,13 +29,17 @@ Two conventions, held to throughout:
   pan-law error or a one-sided polarity flip is exactly the kind of finding
   that averaging the channels together would hide.
 
-`soundfile` is used when installed and `scipy.io.wavfile` otherwise. Both paths
-scale integer PCM by 2**(bits-1), so a verdict never depends on which library
-happens to be present.
+`soundfile` is declared as a dependency because a DAW bounce is not always a
+plain WAV: libsndfile reads AIFF and CAF too, and takes the LIST, bext and iXML
+chunks Logic writes in its stride. `scipy.io.wavfile` remains a fallback for
+environments without it. Both paths scale integer PCM by 2**(bits-1), so a
+verdict never depends on which library happens to be present.
 """
 
 import argparse
+import os
 import sys
+import warnings
 
 import numpy as np
 import matplotlib
@@ -65,7 +69,12 @@ def load(path):
         return x, sr, sf.info(path).subtype
     except ImportError:
         from scipy.io import wavfile
-        sr, raw = wavfile.read(path)
+        # A DAW writes chunks scipy has no opinion about (LIST, bext, iXML, cue
+        # markers, and so on). Skipping them is correct here, since none of them
+        # affect the sample data, so the warning is noise rather than news.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", wavfile.WavFileWarning)
+            sr, raw = wavfile.read(path)
         if raw.ndim == 1:
             raw = raw[:, None]
         if raw.dtype == np.uint8:                      # 8-bit PCM is unsigned
@@ -215,11 +224,15 @@ def analyze(a, b, sr, floor_db):
 
 # ---------------------------------------------------------------- plotting
 
-def plot(r, sr, delay, floor_db, out):
+def plot(r, sr, delay, floor_db, out, src_path, bounce_path):
     a, b, resid = r["a"], r["b"], r["resid"]
     t = np.arange(len(a)) / sr * 1000.0
-    fig, ax = plt.subplots(2, 2, figsize=(13, 7.5))
-    fig.suptitle(f"{r['label']}: residual {db(rms(resid)):.1f} dBFS "
+    fig, ax = plt.subplots(2, 2, figsize=(13, 8.0))
+    # Name the files on the figure. These get saved, mailed around and compared
+    # against each other, and a panel of anonymous noise is no use a week later.
+    fig.suptitle(f"{os.path.basename(src_path)}  ->  "
+                 f"{os.path.basename(bounce_path)}\n"
+                 f"{r['label']}: residual {db(rms(resid)):.1f} dBFS "
                  f"({r['rel']:+.1f} dB rel. source), "
                  f"level {r['level']:+.3f} dB, "
                  f"delay {delay:+d} {r['tau'] * sr:+.3f} samples",
@@ -299,46 +312,66 @@ def main():
                    help="dB below source peak spectrum to ignore (default -60)")
     args = p.parse_args()
 
-    xa, sra, suba = load(args.a)
-    xb, srb, subb = load(args.b)
+    # libsndfile reports a missing file as "System error", which is no help at
+    # all when the real problem is a typo in a long bounce path.
+    for path in (args.a, args.b):
+        if not os.path.isfile(path):
+            sys.exit(f"no such file: {path}")
+    try:
+        xa, sra, suba = load(args.a)
+        xb, srb, subb = load(args.b)
+    except Exception as exc:                       # noqa: BLE001
+        sys.exit(f"could not read audio: {exc}")
+
     if sra != srb:
         sys.exit(f"sample rates differ: {sra} vs {srb}. That alone is the answer.")
     sr = sra
 
-    print(f"source           : {len(xa)} samples, {xa.shape[1]} ch, {sr} Hz, {suba}")
-    print(f"bounce           : {len(xb)} samples, {xb.shape[1]} ch, {sr} Hz, {subb}")
-    if suba != subb:
-        print("  note: stored formats differ, which is not by itself a change "
-              "to the signal.")
+    print(f"source           : {args.a}")
+    print(f"                   {len(xa)} samples, {xa.shape[1]} ch, "
+          f"{sr} Hz, {suba}")
+    print(f"bounce           : {args.b}")
+    print(f"                   {len(xb)} samples, {xb.shape[1]} ch, "
+          f"{sr} Hz, {subb}")
     if min(len(xa), len(xb)) < 64:
         sys.exit("files are too short to analyze")
 
-    # --- bit-identity, tested before anything else touches the data --------
-    if xa.shape == xb.shape and np.array_equal(xa, xb):
-        print("\nVERDICT: bit-identical. The sampler is transparent.")
-        return
-
+    shape_a, shape_b = xa.shape, xb.shape
     delay = integer_delay(xa.mean(axis=1), xb.mean(axis=1))
     xa, xb = align(xa, xb, delay)
     print(f"integer delay    : {delay:+d} samples "
           f"({1000.0 * delay / sr:+.4f} ms)   [+ = bounce late]")
 
-    # A bounce region that runs past the end of the sample is routine, so a
-    # length difference alone must not cost a pass. Re-test on the overlap.
-    if xa.shape == xb.shape and np.array_equal(xa, xb):
+    pairs = channel_pairs(xa, xb)
+
+    # --- bit-identity ------------------------------------------------------
+    # Tested per channel pair rather than on the whole arrays. Whole-array
+    # equality would make any difference in shape disqualifying, and three of
+    # those are routine and mean nothing on their own: a start offset, a bounce
+    # region running past the end of the sample, and a mono sample coming back
+    # on a stereo bus. What matters is whether every sample that lines up
+    # matches, so that is what gets tested.
+    if all(np.array_equal(ca, cb) for _, ca, cb in pairs):
+        print("\nVERDICT: bit-identical. The sampler is transparent.")
+        aside = []
         if delay:
-            print(f"\nVERDICT: bit-identical once a {delay:+d}-sample offset is "
-                  "removed. The sampler is transparent; the offset is playback "
-                  "start position or plugin delay compensation.")
-        else:
-            print(f"\nVERDICT: bit-identical across all {len(xa)} overlapping "
-                  "samples. The sampler is transparent; the files differ only "
-                  "in length, which is the bounce region running past the "
-                  "end of the sample.")
+            aside.append(f"a {delay:+d}-sample start offset, which is playback "
+                         "start position or plugin delay compensation")
+        if shape_a[0] != shape_b[0]:
+            aside.append("a length difference, the bounce region running past "
+                         "the end of the sample")
+        if shape_a[1] != shape_b[1]:
+            aside.append(f"a {shape_a[1]}-to-{shape_b[1]} channel expansion, "
+                         "every bounce channel matching the source exactly")
+        if suba != subb:
+            aside.append(f"a change of stored format from {suba} to {subb}")
+        if aside:
+            print("         Every sample that lines up matches. What differs "
+                  "is " + "; ".join(aside) + ".")
         return
 
     results = []
-    for label, ca, cb in channel_pairs(xa, xb):
+    for label, ca, cb in pairs:
         r = analyze(ca, cb, sr, args.floor)
         r["label"] = label
         results.append(r)
@@ -370,6 +403,13 @@ def main():
     if any(abs(r["corr"]) < 0.9999 for r in results):
         print("  correlation is short of 1, so no single scalar gain explains "
               "the bounce. Read the |B/A| panel rather than the gain figures.")
+    exact = [r["label"] for r in results if not np.any(r["resid"])]
+    if exact:
+        print(f"  residual is exactly zero on {', '.join(exact)}, so whatever "
+              "happened did not happen there.")
+    if suba != subb:
+        print(f"  stored formats differ ({suba} source, {subb} bounce), which "
+              "is not by itself a change to the signal.")
     if xa.shape[1] != xb.shape[1]:
         print(f"  channel counts differ ({xa.shape[1]} source, {xb.shape[1]} "
               "bounce), so the single source channel was compared against each "
@@ -378,7 +418,7 @@ def main():
         print(f"  plotting {worst['label']}, the channel with the largest "
               "residual.")
 
-    plot(worst, sr, delay, args.floor, args.out)
+    plot(worst, sr, delay, args.floor, args.out, args.a, args.b)
 
 
 if __name__ == "__main__":

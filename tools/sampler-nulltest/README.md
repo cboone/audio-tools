@@ -28,7 +28,7 @@ Both are executable, so `./nulltest.py source.wav bounced.wav` works as well.
 
 `nulltest.py` prints its findings and writes a four-panel PNG. `--floor` sets the level below the source's own spectral peak at which a bin stops counting as signal, default -60 dB.
 
-`soundfile` is used for file reading when it happens to be installed, and `scipy.io.wavfile` otherwise. Both paths scale integer PCM by the same factor, so a verdict never depends on which one is present.
+`soundfile` is a declared dependency because a DAW bounce is not always a plain WAV: libsndfile reads AIFF and CAF as well, and takes the LIST, bext and iXML chunks Logic writes in its stride. `scipy.io.wavfile` stays as a fallback for environments without it, and both paths scale integer PCM by the same factor, so a verdict never depends on which one is in play.
 
 The committed `probe/` directory is 48 kHz. Point `--outdir` somewhere else when generating at another rate, rather than mixing rates in one directory.
 
@@ -38,7 +38,7 @@ A null test is not a general A/B comparison, and the difference matters. In a ge
 
 Four things get separated.
 
-**Bit-identity.** Checked first on the arrays as loaded, then again on the overlapping region after integer alignment. A bounce region that runs past the end of the sample is routine, so a length difference alone must not cost a pass. A difference in stored format must not either: a 24-bit source and a 32-bit float bounce holding the same values differ in container, not in signal. This is the only unambiguous pass. Everything below is forensics on a failure.
+**Bit-identity.** Tested per channel pair after integer alignment, rather than on whole arrays. Whole-array equality would make any difference in shape disqualifying, and three of those are routine and mean nothing on their own: a start offset, a bounce region running past the end of the sample, and a mono sample coming back on a stereo bus. A difference in stored format is equally uninteresting, since a 24-bit source and a 32-bit float bounce holding the same values differ in container, not in signal. What matters is whether every sample that lines up matches, so that is what gets tested, and the verdict then names whichever of those differences was present. This is the only unambiguous pass. Everything below is forensics on a failure.
 
 **Integer-sample lag.** Found by FFT cross-correlation. Harmless in itself: it is playback start offset or plugin delay compensation.
 
