@@ -1,6 +1,8 @@
 # Sampler transparency null test
 
-Read `README.md` first. It carries the problem statement, the method and why it is shaped that way, the Logic-side checklist, and the confirmed reporting defects in `nulltest.py`.
+Read `README.md` first. It carries the problem statement, the step-by-step procedure for running a test against Logic, the method and why it is shaped that way, the Logic-side checklist, and the known limitations.
+
+The procedure opens with a control test: bounce the probe through a plain audio track with no sampler involved, and confirm that nulls, before measuring any instrument. Do not let anyone skip it. A bounce chain fault and a sampler fault look identical in the residual, and without the control there is nothing to tell them apart.
 
 ## Notes for agents
 

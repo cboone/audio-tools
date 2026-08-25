@@ -32,6 +32,69 @@ Both are executable, so `./nulltest.py source.wav bounced.wav` works as well.
 
 The committed `probe/` directory is 48 kHz. Point `--outdir` somewhere else when generating at another rate, rather than mixing rates in one directory.
 
+## Procedure
+
+### Step 0: prove the bounce chain before measuring the sampler
+
+Load `probe_noise.wav` onto a plain audio track at unity, bounce it, and null that against the source. No sampler involved.
+
+This is not a formality. It separates "the sampler changed my sample" from "my bounce chain changed my sample", and those two look identical in the residual. Skip it and you can spend a long time attributing pan law or dither to the instrument. Repeat it whenever the project or its settings change.
+
+A pass reads like this:
+
+```text
+VERDICT: bit-identical. The sampler is transparent.
+         Every sample that lines up matches. What differs is a 1-to-2 channel
+         expansion, every bounce channel matching the source exactly.
+```
+
+Anything else is the chain, not the instrument. Likely causes in rough order of frequency: pan law, dither, project rate not matching the file, a plugin on the output, a fader not quite at 0.0.
+
+### Step 1: match the sample rate
+
+Check the project rate first, then generate probes to match. A mismatch forces SRC and you will be measuring the sample rate converter rather than the sampler.
+
+```bash
+uv run maketest.py --sr 48000 --outdir probe-48000
+```
+
+### Step 2: set up the instrument
+
+Work through the [Logic-side checklist](#logic-side-checklist) below. The entries that most often bite:
+
+- Pan law at 0 dB. A compensated setting subtracts level from a centered signal, and that looks exactly like the sampler applying a gain.
+- Play the zone's root key. Any other note is transposition, which is resampling wearing a different hat.
+- Velocity sensitivity at zero, rather than trusting a velocity-127 note. Then velocity cannot scale amplitude at all.
+- Flex off, and Quick Sampler's import-time gain optimization off.
+- A MIDI note comfortably longer than the probe, so you are not measuring the release stage.
+
+### Step 3: bounce
+
+WAV, 32-bit float, sample rate equal to the project rate, dithering off, normalize off. Offline rather than realtime, since offline is deterministic and realtime can vary between runs.
+
+A start offset, trailing silence, and a mono probe coming back stereo are all fine. The analysis removes the offset, trims to the overlap, and compares each channel separately, and none of those differences costs a pass.
+
+Mono or stereo makes no difference to the verdict, and stereo is marginally the better test: it exercises both sides of the path at once, so a pan-law error or a one-sided polarity flip shows up where a mono bounce would hide it. Logic follows the channel strip's output format, so a strip feeding the stereo bus bounces stereo. Feed a single output instead if you want mono.
+
+### Step 4: read the result
+
+```bash
+uv run nulltest.py probe-48000/probe_noise.wav bounce.wav -o sampler.png
+```
+
+- **Bit-identical**, with or without offsets named in the verdict: done. The sampler is transparent under those settings.
+- **Fractional delay near zero and `|B/A|` flat at 0 dB**: transparent apart from level. Read `level` for how much.
+- **Fractional delay non-zero plus a cliff below Nyquist**: sample rate conversion or transposition. The cliff is the anti-imaging filter.
+- **Fractional delay non-zero but `|B/A|` flat**: more likely a minimum-phase filter's group delay than resampling. The panel is what tells them apart.
+- **Residual concentrated at the very start and end, flat in between**: declick fades at the zone boundaries, not a global change. This is why the residual time panel earns its place even though it is a solid block for stationary noise.
+- **Residual raised, `|B/A|` flat, correlation short of 1**: nonlinearity, so saturation or clipping somewhere. The linear model has nothing to say about it, which is itself the finding.
+
+### Step 5: then the real sample
+
+Characterize the instrument with the noise probe first, then run the actual sample through as confirmation. The reason is in [Use noise, not a kick](#use-noise-not-a-kick) below.
+
+`probe_click.wav` is worth a run too. Its output is literally the impulse response of whatever the sampler did, so smearing of one sample into a longer blob is direct visual evidence of filtering or resampling, with no interpretation needed.
+
 ## Method
 
 A null test is not a general A/B comparison, and the difference matters. In a general comparison you divide out level and time offset as nuisances so you can see the shape difference underneath. In a transparency test, level and time offset *are* findings. So `nulltest.py` measures both and reports them, applies integer-sample alignment only (because you cannot compute a residual at all without it), and never applies the gain correction.
