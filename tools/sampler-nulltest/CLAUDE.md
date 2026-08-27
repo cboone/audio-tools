@@ -15,6 +15,10 @@ The procedure opens with a control test: bounce the probe through a plain audio 
 
 ## Status
 
-Validated against synthetic cases, and against one real Logic bounce: `probe_noise.wav` on a plain audio track at 48 kHz, bounced to 32-bit float, came back bit-identical on both channels of the stereo output bus. That run is the control test. It establishes that the bounce chain itself is transparent, so anything a later measurement turns up belongs to the instrument rather than to the export, and it is worth repeating whenever the project or its settings change.
+The question this tool was built to answer has been answered. See the Findings section of `README.md` for the result: both Logic samplers are bit-transparent at the root key with velocity at 127, they are bit-identical to each other, and MIDI note velocity was the only control that broke transparency. Validated against synthetic cases first, then against real Logic bounces throughout.
 
-The sampler itself has not been measured yet. The next step is to load the probe into Sampler or Quick Sampler with the checklist in `README.md` satisfied, trigger it at the zone's root key, bounce, and compare.
+A bit-identical result closes a configuration completely. There is no residual left for another probe to characterize, so running the sweep or the click against a configuration that already nulled adds nothing. `probe_sweep.wav` and `probe_click.wav` remain unused for that reason, not because they were skipped.
+
+Open questions, each needing its own run because each exercises a different code path: transposition away from the root key, looping and loop crossfades, a sample whose rate differs from the project, and Flex. The tool is validated against real bounces and ready for any of them.
+
+Two things to keep in mind when extending this work. Repeat the control test whenever the project or its settings change, since it is cheap and it once retroactively cleared a monitoring plugin that had been loaded on the output the whole time. And bounce with Bounce Region or Section rather than Bounce In Place, which was measured truncating to 24-bit regardless of the recording preference and the bounce dialog.

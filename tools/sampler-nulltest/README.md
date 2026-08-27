@@ -4,6 +4,25 @@ Does a sampler pass a sample through unaltered when every control is nominally o
 
 Written against Logic Pro's Sampler and Quick Sampler, but nothing in the analysis is Logic-specific.
 
+## Findings
+
+Measured against Logic Pro with the project and the probe both at 48 kHz, the sample at its root key, filter off, envelope flat, and the result bounced to 32-bit float via Bounce Region or Section.
+
+**Sampler and Quick Sampler are bit-transparent.** Both return the source unaltered, sample for sample, and they are bit-identical to each other, so there is no transparency reason to prefer one over the other.
+
+The only control that broke transparency was **MIDI note velocity**. It applies a pure scalar gain and does nothing else: no resampling, no filtering, no envelope shaping, no dither, no nonlinearity. At velocity 80 the gain measured -6.8116 dB, a factor of 0.4564784468, and the residual after removing that one scalar was half a float32 ULP. At velocity 127 both instruments are bit-identical to the source.
+
+This is worth calling out because velocity is never "nominally off". A drawn note carries whatever velocity it was drawn with, and that silently scales the output while looking like nothing at all.
+
+One data point does not determine the velocity curve. Fitting `gain = (v/127)**k` gives `k = 1.697`, so the mapping is neither linear in amplitude nor square-law, but that is a fit rather than a determination: a sensitivity parameter cannot be separated from the exponent without bouncing at several velocities.
+
+Two incidental findings about the bounce path itself:
+
+- **Bounce In Place truncates to 24-bit**, with the recording preference set to 32-bit float and the bounce dialog set to 32-bit float, so it appears to honor neither. The error is strictly non-negative and uniform on `[0, 1)` LSB, which is `floor()` rather than rounding, and no dither is applied. That leaves a DC offset near -145 dBFS and an error correlated with the signal. Inaudible, but it puts a floor under every measurement, so use Bounce Region or Section.
+- **Bounce Region or Section is bit-identical**, which is what makes the control test in the procedure worth running at all.
+
+These results hold for this configuration only. Transposition away from the root key, looping and loop crossfades, a sample rate that differs from the project, and Flex are all separate questions, and each one needs its own run.
+
 ## Contents
 
 | Path          | Purpose                                                                                      |
@@ -62,15 +81,17 @@ uv run maketest.py --sr 48000 --outdir probe-48000
 
 Work through the [Logic-side checklist](#logic-side-checklist) below. The entries that most often bite:
 
+- **Set the note velocity to 127.** This is the one that actually broke transparency in practice, and it is worth doing first. Velocity is never "nominally off": a drawn note simply carries whatever velocity it was drawn with, and that silently scales the output. Zeroing the instrument's velocity sensitivity would work too, but the note velocity is a control you can always find, and at maximum velocity the mapping is at unity regardless of how the sensitivity is set.
 - Pan law at 0 dB. A compensated setting subtracts level from a centered signal, and that looks exactly like the sampler applying a gain.
 - Play the zone's root key. Any other note is transposition, which is resampling wearing a different hat.
-- Velocity sensitivity at zero, rather than trusting a velocity-127 note. Then velocity cannot scale amplitude at all.
-- Flex off, and Quick Sampler's import-time gain optimization off.
+- Flex off, and Quick Sampler's import-time gain optimization off. Drop the sample on **Original**, not Optimized.
 - A MIDI note comfortably longer than the probe, so you are not measuring the release stage.
 
 ### Step 3: bounce
 
-WAV, 32-bit float, sample rate equal to the project rate, dithering off, normalize off. Offline rather than realtime, since offline is deterministic and realtime can vary between runs.
+Use **Bounce Region or Section**, not Bounce In Place. BIP was measured writing truncated 24-bit output while the recording preference was set to 32-bit float and the bounce dialog was set to 32-bit float, so it appears to ignore both. The signal survives it exactly, but the requantization puts a floor under every measurement for no reason. Bounce Region or Section honors the dialog and comes back bit-identical.
+
+WAV, 32-bit float, sample rate equal to the project rate, dithering off, normalize off. Offline rather than realtime, since offline is deterministic and realtime can vary between runs. Bypass any monitoring plugin on the output, such as a headphone room simulator, rather than trusting it to exclude itself from an offline render.
 
 A start offset, trailing silence, and a mono probe coming back stereo are all fine. The analysis removes the offset, trims to the overlap, and compares each channel separately, and none of those differences costs a pass.
 
@@ -91,9 +112,11 @@ uv run nulltest.py probe-48000/probe_noise.wav bounce.wav -o sampler.png
 
 ### Step 5: then the real sample
 
-Characterize the instrument with the noise probe first, then run the actual sample through as confirmation. The reason is in [Use noise, not a kick](#use-noise-not-a-kick) below.
+If the noise probe came back bit-identical, stop. That result closes the configuration: there is no residual left for another probe to characterize, so the sweep, the click and the real sample can tell you nothing further about it. Move on to a configuration that has not been tested instead.
 
-`probe_click.wav` is worth a run too. Its output is literally the impulse response of whatever the sampler did, so smearing of one sample into a longer blob is direct visual evidence of filtering or resampling, with no interpretation needed.
+Otherwise, characterize the instrument with the noise probe first, then run the actual sample through as confirmation. The reason is in [Use noise, not a kick](#use-noise-not-a-kick) below.
+
+`probe_click.wav` is worth a run when something did change. Its output is literally the impulse response of whatever the sampler did, so smearing of one sample into a longer blob is direct visual evidence of filtering or resampling, with no interpretation needed.
 
 ## Method
 
@@ -145,7 +168,7 @@ Signal path into and through the sampler:
 - The played note must equal the zone's root key, or you get transposition, which is resampling under another name.
 - Quick Sampler does things on import that are not labeled as processing: gain optimization and normalization, declick fades at zone boundaries, loop crossfades. Flex mode time-stretches unconditionally, even at ratio 1.
 - Amp envelope: a nominally instant attack may still be a short ramp.
-- Velocity-to-amplitude scaling. Trigger at 127 and check the velocity-to-volume amount, or you are measuring the mod matrix.
+- Velocity-to-amplitude scaling. Measured as the one that actually breaks transparency in practice, so trigger at 127. A note drawn at the default velocity of 80 cost 6.8116 dB.
 - Filter genuinely bypassed, not just at maximum cutoff.
 
 Channel strip and bounce:
