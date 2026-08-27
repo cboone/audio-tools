@@ -180,17 +180,29 @@ def transfer_function(a, b, sr, floor_db=-60.0):
 def channel_pairs(xa, xb):
     """Decide which channel of the source to compare against which of the bounce.
 
-    A mono sample coming back as a stereo bounce is a normal sampler outcome
-    rather than an error, so the single source channel is compared against each
-    bounce channel separately."""
+    Returns (pairs, unpaired source channels, unpaired bounce channels). The
+    leftovers are returned rather than silently dropped: a channel nobody
+    compared must never be described as matching, and pairing only
+    min(na, nb) of them would do exactly that for, say, a stereo source against
+    a surround bounce.
+
+    A mono sample coming back on a stereo bus is a normal sampler outcome rather
+    than an error, so the single source channel is compared against every bounce
+    channel and nothing is left over."""
     na, nb = xa.shape[1], xb.shape[1]
     if na == 1 and nb > 1:
-        return [(f"ch{j}", xa[:, 0], xb[:, j]) for j in range(nb)]
+        return [(f"ch{j}", xa[:, 0], xb[:, j]) for j in range(nb)], [], []
     if nb == 1 and na > 1:
-        return [(f"ch{i}", xa[:, i], xb[:, 0]) for i in range(na)]
+        return [(f"ch{i}", xa[:, i], xb[:, 0]) for i in range(na)], [], []
     n = min(na, nb)
     names = ["mono"] if n == 1 else [f"ch{i}" for i in range(n)]
-    return [(names[i], xa[:, i], xb[:, i]) for i in range(n)]
+    pairs = [(names[i], xa[:, i], xb[:, i]) for i in range(n)]
+    return pairs, list(range(n, na)), list(range(n, nb))
+
+
+def named(idx):
+    """Channel indices as a readable list, e.g. "ch2, ch3"."""
+    return ", ".join(f"ch{i}" for i in idx)
 
 
 def analyze(a, b, sr, floor_db):
@@ -342,7 +354,14 @@ def main():
     print(f"integer delay    : {delay:+d} samples "
           f"({1000.0 * delay / sr:+.4f} ms)   [+ = bounce late]")
 
-    pairs = channel_pairs(xa, xb)
+    pairs, extra_a, extra_b = channel_pairs(xa, xb)
+
+    # An unpaired bounce channel is harmless only when it carries digital
+    # silence, which is what an unused output leg looks like. Anything else is
+    # content this test never compared against anything, so it cannot count
+    # toward a pass. An unpaired SOURCE channel is worse: that is audio the
+    # bounce dropped outright.
+    unchecked_b = [j for j in extra_b if np.any(xb[:, j])]
 
     # --- bit-identity ------------------------------------------------------
     # Tested per channel pair rather than on the whole arrays. Whole-array
@@ -350,8 +369,10 @@ def main():
     # those are routine and mean nothing on their own: a start offset, a bounce
     # region running past the end of the sample, and a mono sample coming back
     # on a stereo bus. What matters is whether every sample that lines up
-    # matches, so that is what gets tested.
-    if all(np.array_equal(ca, cb) for _, ca, cb in pairs):
+    # matches, and that nothing was left unexamined.
+    pairs_exact = all(np.array_equal(ca, cb) for _, ca, cb in pairs)
+
+    if pairs_exact and not extra_a and not unchecked_b:
         print("\nVERDICT: bit-identical. The sampler is transparent.")
         aside = []
         if delay:
@@ -360,14 +381,42 @@ def main():
         if shape_a[0] != shape_b[0]:
             aside.append("a length difference, the bounce region running past "
                          "the end of the sample")
-        if shape_a[1] != shape_b[1]:
+        if shape_a[1] != shape_b[1] and extra_b:
+            aside.append(f"a channel count of {shape_a[1]} against "
+                         f"{shape_b[1]}, where the bounce channels with no "
+                         f"source counterpart ({named(extra_b)}) carry digital "
+                         "silence")
+        elif shape_b[1] > shape_a[1]:
             aside.append(f"a {shape_a[1]}-to-{shape_b[1]} channel expansion, "
                          "every bounce channel matching the source exactly")
+        elif shape_a[1] != shape_b[1]:
+            # Reaching a pass with fewer bounce channels than source channels
+            # means every source channel equalled the one bounce channel, so
+            # the source was multi-mono and the fold-down lost nothing.
+            aside.append(f"a {shape_a[1]}-to-{shape_b[1]} channel fold-down, "
+                         "every source channel matching the bounce exactly")
         if suba != subb:
             aside.append(f"a change of stored format from {suba} to {subb}")
         if aside:
             print("         Every sample that lines up matches. What differs "
                   "is " + "; ".join(aside) + ".")
+        return
+
+    # Every paired channel matched, so the residual is not the story and the
+    # usual verdict would bury the real one under a -240 dBFS reading. Say what
+    # actually disqualified it instead.
+    if pairs_exact:
+        print("\nVERDICT: not transparent. Every channel that could be paired "
+              "matches the source exactly, but the channel layout leaves "
+              "something unaccounted for.")
+        if extra_a:
+            print(f"  the bounce has no counterpart for source channels "
+                  f"{named(extra_a)}, so that audio was dropped rather than "
+                  "passed through.")
+        if unchecked_b:
+            print(f"  bounce channels {named(unchecked_b)} have no source "
+                  "counterpart and carry content, so they were compared "
+                  "against nothing and cannot count toward a pass.")
         return
 
     results = []
@@ -411,9 +460,21 @@ def main():
         print(f"  stored formats differ ({suba} source, {subb} bounce), which "
               "is not by itself a change to the signal.")
     if xa.shape[1] != xb.shape[1]:
-        print(f"  channel counts differ ({xa.shape[1]} source, {xb.shape[1]} "
-              "bounce), so the single source channel was compared against each "
-              "bounce channel in turn.")
+        if xa.shape[1] == 1 or xb.shape[1] == 1:
+            print(f"  channel counts differ ({xa.shape[1]} source, "
+                  f"{xb.shape[1]} bounce), so the single channel was compared "
+                  "against every channel on the other side in turn.")
+        else:
+            print(f"  channel counts differ ({xa.shape[1]} source, "
+                  f"{xb.shape[1]} bounce), and channels were paired up by "
+                  "position.")
+    if extra_a:
+        print(f"  source channels with no counterpart in the bounce: "
+              f"{named(extra_a)}. That audio was dropped rather than passed "
+              "through, which is never transparent.")
+    if unchecked_b:
+        print(f"  bounce channels with no source counterpart, carrying content "
+              f"that was compared against nothing: {named(unchecked_b)}.")
     if len(results) > 1:
         print(f"  plotting {worst['label']}, the channel with the largest "
               "residual.")
