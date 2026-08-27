@@ -6,7 +6,7 @@ Written against Logic Pro's Sampler and Quick Sampler, but nothing in the analys
 
 ## Findings
 
-Measured against Logic Pro with the project and the probe both at 48 kHz, the sample at its root key, filter off, envelope flat, and the result bounced to 32-bit float via Bounce Region or Section.
+Measured against Logic Pro 12.3.1, with the project and the probe both at 48 kHz, the sample at its root key, filter off, envelope flat, and the result bounced to 32-bit float via Bounce Region or Section. The version matters for the Bounce In Place behavior below, which is a defect rather than a design decision and may not survive.
 
 **Sampler and Quick Sampler are bit-transparent.** Both return the source unaltered, sample for sample, and they are bit-identical to each other, so there is no transparency reason to prefer one over the other.
 
