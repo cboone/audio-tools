@@ -9,12 +9,12 @@ Command-line tools for measuring what a digital audio signal path does to a sign
 ```text
 audio-tools/
 ├── tools/
-│   └── sampler-nulltest/    # Is a bounce a bit-transparent pass-through of its source?
-│       ├── AGENTS.md        # Tool-specific agent instructions (CLAUDE.md symlinks here)
-│       ├── README.md        # Problem statement, procedure, method, limitations
-│       ├── nulltest.py      # The analysis
-│       ├── maketest.py      # Probe signal generator
-│       └── probe/           # Committed 48 kHz probes, reproducible from maketest.py
+│   ├── sampler-nulltest/    # Is a bounce a bit-transparent pass-through of its source?
+│   │   ├── AGENTS.md        # Tool-specific agent instructions (CLAUDE.md symlinks here)
+│   │   ├── README.md        # Problem statement, procedure, method, limitations
+│   │   ├── nulltest.py      # The analysis
+│   │   ├── maketest.py      # Probe signal generator
+│   │   └── probe/           # Committed 48 kHz probes, reproducible from maketest.py
 │   └── test-signals/        # Exact tones, levels, pans and transients for checking a display
 │       ├── AGENTS.md        # Tool-specific agent instructions (CLAUDE.md symlinks here)
 │       ├── README.md        # Usage, the four output decisions, how verification works

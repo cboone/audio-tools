@@ -3,9 +3,10 @@
 useDefault = true
 
 [allowlist]
-# This repo has no lockfiles and no vendored dependencies: each tool declares
-# its own dependencies inline via PEP 723, so the usual lockfile exclusions do
-# not apply.
+# There are no vendored dependencies, and no Python lockfile: each tool
+# declares its own dependencies inline via PEP 723. The one lockfile present,
+# package-lock.json, pins the text linters and is scanned like any other file,
+# so the usual lockfile exclusions are not set up here.
 #
 # The probe WAVs are committed build artifacts, reproducible from maketest.py.
 # They are 32-bit float audio, so high-entropy byte runs are expected and mean

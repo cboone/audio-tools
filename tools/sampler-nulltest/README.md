@@ -30,6 +30,8 @@ These results hold for this configuration only. Transposition away from the root
 | `nulltest.py` | Compares a source WAV against a bounced WAV and reports what, if anything, changed.          |
 | `maketest.py` | Generates the probe signals to feed the sampler.                                             |
 | `probe/`      | Pre-generated probes at 48 kHz: noise, log sweep, single-sample impulse. Mono, 32-bit float. |
+| `README.md`   | This file.                                                                                   |
+| `AGENTS.md`   | Notes for agents. `CLAUDE.md` symlinks here.                                                 |
 
 ## Usage
 
@@ -45,7 +47,9 @@ uv run nulltest.py source.wav bounced.wav -o nulltest.png
 
 Both are executable, so `./nulltest.py source.wav bounced.wav` works as well.
 
-`nulltest.py` prints its findings and writes a four-panel PNG. `--floor` sets the level below the source's own spectral peak at which a bin stops counting as signal, default -60 dB.
+`nulltest.py` always prints its findings, and writes a four-panel PNG only when there is a residual to plot. A bit-identical verdict writes no image, and neither does a verdict that fails on channel layout alone, because in both cases there is nothing to draw. When an image is written it shows the channel with the largest residual.
+
+`--floor` sets the level below the source's own spectral peak at which a bin stops counting as signal, default -60 dB.
 
 `soundfile` is a declared dependency because a DAW bounce is not always a plain WAV: libsndfile reads AIFF and CAF as well, and takes the LIST, bext and iXML chunks Logic writes in its stride. `scipy.io.wavfile` stays as a fallback for environments without it, and both paths scale integer PCM by the same factor, so a verdict never depends on which one is in play.
 
@@ -106,6 +110,7 @@ uv run nulltest.py probe-48000/probe_noise.wav bounce.wav -o sampler.png
 ```
 
 - **Bit-identical**, with or without offsets named in the verdict: done. Nothing between the source file and the bounce altered the signal under those settings, and since the control test already cleared the bounce chain, that verdict belongs to the instrument.
+- **Every channel that could be paired matches, but the channel layout leaves something unaccounted for**: a layout finding rather than a signal one, and not a pass. Either the bounce has no counterpart for a source channel, so that audio was dropped outright, or it carries a channel with no source counterpart holding content that was never compared against anything. The verdict names the channels. Check the channel strip's output format and bounce again.
 - **Fractional delay near zero and `|B/A|` flat at 0 dB**: transparent apart from level. Read `level` for how much.
 - **Fractional delay non-zero plus a cliff below Nyquist**: sample rate conversion or transposition. The cliff is the anti-imaging filter.
 - **Fractional delay non-zero but `|B/A|` flat**: more likely a minimum-phase filter's group delay than resampling. The panel is what tells them apart.
@@ -187,5 +192,5 @@ You can null without exporting. Put the original file on one audio track at unit
 
 - `|B/A|` comes from a single FFT over the whole file rather than a Welch average, so the estimate is noisy for short or non-stationary sources. The probe signals are long and stationary precisely to avoid this.
 - The transfer function is a linear model. Nonlinearity such as clipping or saturation lifts the residual without producing any clean `H` to read, so the signature to watch for is an elevated residual alongside a flat `|B/A|` and a correlation short of 1.
-- The integer delay is measured once from the channel mean and applied to every channel. Per-channel delay differences beyond that get absorbed into each channel's fractional figure, which is only meaningful within plus or minus one sample.
+- The integer delay is measured once and applied to every channel. It is read off the channel pair where both sides carry the most energy, rather than off the channel mean, because anti-phase channels cancel in the mean and leave the cross-correlation reading digital silence. Per-channel delay differences beyond that single figure get absorbed into each channel's fractional delay, which is only meaningful within plus or minus one sample.
 - The overlay and residual panels plot the whole file, which is a solid block for anything long and stationary. For a noise probe the printed numbers carry the finding, not those two panels.

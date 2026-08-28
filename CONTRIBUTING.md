@@ -19,7 +19,7 @@ Please note that this project has a [Code of Conduct](CODE_OF_CONDUCT.md). By pa
 
 There is no Python dependency install step. Every tool is a standalone script carrying [PEP 723](https://peps.python.org/pep-0723/) inline metadata, so `uv` resolves each script's dependencies on first run.
 
-The `package.json` at the root does not make this a JavaScript project. It exists only to pin `markdownlint-cli2`, `prettier` and `cspell`, so that `make text-lint` and CI run byte-identical versions. `make node-tools` installs them, and the other targets depend on it.
+The `package.json` at the root does not make this a JavaScript project. It exists only to pin `markdownlint-cli2`, `prettier` and `cspell`, so that `make text-lint` and CI run byte-identical versions. `make node-tools` installs them, and `make text-lint` and `make text-fix` depend on it, so it runs on its own when needed. The Python and scrut targets do not use it.
 
 ### Getting Started
 
