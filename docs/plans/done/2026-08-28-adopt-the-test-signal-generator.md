@@ -132,8 +132,10 @@ Conventional Commits, lowercase imperative subjects describing the effect, GPG s
 
 ## Follow-ups, not part of this branch
 
-- **Comment on audio-tools#1** recording that fosforo#64 supersedes the companion-analyser paragraph.
-- **File an issue in cboone/fosforo** to drop the script once this lands: delete `scripts/make-test-tones`, delete the single `make-test-tones,` token from the brace list in `.editorconfig` lines 39–53, and add a pointer note to the two plan documents that reference it, `docs/plans/done/2026-08-20-draw-a-crude-aliased-trace.md` (lines 306 and 403) and `docs/plans/done/2026-08-26-accumulate-the-beam-into-a-persistent-texture.md` (lines 253 and 312). Both are in `done/` and are kept as historical records, so a note is more appropriate than a rewrite. If fosforo's `chore/scripts` branch merges first, its new `AGENTS.md` entry for the script needs the same treatment.
+Both are done.
+
+- **Comment on audio-tools#1** recording that fosforo#64 supersedes the companion-analyser paragraph. Posted.
+- **File an issue in cboone/fosforo** to drop the script once this lands, filed as [cboone/fosforo#67](https://github.com/cboone/fosforo/issues/67): delete `scripts/make-test-tones`, delete the single `make-test-tones,` token from the brace list in `.editorconfig` lines 39–53, and add a pointer note to the two plan documents that reference it, `docs/plans/done/2026-08-20-draw-a-crude-aliased-trace.md` (lines 306 and 403) and `docs/plans/done/2026-08-26-accumulate-the-beam-into-a-persistent-texture.md` (lines 253 and 312). Both are in `done/` and are kept as historical records, so a note is more appropriate than a rewrite. If fosforo's `chore/scripts` branch merges first, its new `AGENTS.md` entry for the script needs the same treatment.
 
 ## Optional, flag if unwanted
 
