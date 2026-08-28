@@ -357,6 +357,19 @@ def main():
         if not math.isfinite(value) or value < 0.0:
             sys.exit(f"{flag}: {value:g} is not a finite number at or above zero")
 
+    # A gate whose open time reaches its own period never closes, so the file
+    # is a continuous tone under a name promising a click or a burst. That is
+    # the failure the Nyquist check exists to prevent, in a different
+    # dimension: a file quietly not being the signal it is called. Checked
+    # after the loop above, which is what guarantees the rate is above zero.
+    for ms_flag, ms, rate_flag, rate in (
+            ("--click-ms", args.click_ms, "--click-rate", args.click_rate),
+            ("--burst-ms", args.burst_ms, "--burst-rate", args.burst_rate)):
+        period = 1000.0 / rate
+        if ms >= period:
+            sys.exit(f"{ms_flag}: {ms:g} ms fills the {period:g} ms period of "
+                     f"{rate_flag} {rate:g}, so the gate would never close")
+
     for flag, tokens in (("--levels", args.levels), ("--saws", args.saws)):
         for token in tokens:
             try:

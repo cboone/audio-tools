@@ -14,7 +14,9 @@ Written for verifying an audio plugin's display by playing files through REAPER,
 | `README.md`    | This file.                                                 |
 | `CLAUDE.md`    | Notes for agents.                                          |
 
-Output is not committed. A default run is 20 files of roughly 7.7 MB each, they are regenerated in seconds, and nothing compares against a stored copy. `.gitignore` carries `tools/test-signals/*.wav` so a run inside the repo leaves nothing behind.
+Output is not committed. A default run is 18 files of roughly 7.7 MB each, they are regenerated in seconds, and nothing compares against a stored copy.
+
+`.gitignore` carries `tools/test-signals/*.wav`, which covers output written into the tool's own directory. Note that `--outdir` defaults to the current directory, following `maketest.py` next door, so a run started from the repository root writes 18 large files into the root where that entry does not reach them. Pass `--outdir` and send them somewhere outside the tree.
 
 ## Usage
 
