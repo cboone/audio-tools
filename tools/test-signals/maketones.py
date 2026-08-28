@@ -118,8 +118,14 @@ def peaks(x):
     return np.max(np.abs(x), axis=0)
 
 
-def sine_floor(sr, hz, level):
+def sine_floor(t, sr, hz, level):
     """The lowest peak a correctly generated sine can show at this frequency.
+
+    Returns zero for a file too short to contain a crest, on the same rule and
+    for the same reason as gated_floor below: 0.001 s of 100 Hz covers a tenth
+    of a turn and peaks at 0.289 of its amplitude, which is a correct file that
+    the phase bound would reject. The bound assumes a crest is in range, and
+    below a quarter period there is nothing to bound.
 
     A sampled sine only reaches its amplitude when a sample lands on its crest.
     The worst case is a crest falling exactly between two samples, leaving the
@@ -140,6 +146,8 @@ def sine_floor(sr, hz, level):
     correct file the moment a caller asked for a frequency of its own.
     Checking against the bound keeps the check meaningful for any --sines the
     caller passes."""
+    if hz * t[-1] < 0.25:
+        return 0.0
     return level * np.cos(np.pi * hz / sr)
 
 
@@ -151,17 +159,20 @@ def saw_floor(sr, hz, level):
     return level * (1.0 - 2.0 * hz / sr)
 
 
-def gated_floor(sr, hz, ms, level):
+def gated_floor(t, sr, hz, ms, level):
     """The lowest peak a gated sine can show, or zero for too short a window.
 
     The gate opens at the sine's phase zero, so the window covers phase up to
     `2 * pi * hz * ms / 1000` and contains a crest only once that reaches a
     quarter turn. Below that there is no crest to bound and the honest floor is
     zero: a shorter burst is a legitimate thing to ask for, and the readback
-    check still proves the file holds whatever it does hold."""
+    check still proves the file holds whatever it does hold.
+
+    The file has to be long enough to hold the window as well, which is what
+    deferring to sine_floor covers."""
     if ms / 1000.0 * hz < 0.25:
         return 0.0
-    return sine_floor(sr, hz, level)
+    return sine_floor(t, sr, hz, level)
 
 
 # ------------------------------------------------------------------ rendering
@@ -231,7 +242,8 @@ def make_sines(args):
     for hz in args.sines:
         tone = sine(t, hz, args.sine_level)
         yield (f"sine-{hz:g}hz-{args.sine_level:g}", stereo(tone, tone),
-               args.sine_level, sine_floor(args.sr, hz, args.sine_level), None)
+               args.sine_level, sine_floor(t, args.sr, hz, args.sine_level),
+               None)
 
 
 def make_levels(args):
@@ -246,7 +258,7 @@ def make_levels(args):
         level = float(token)
         tone = sine(t, args.level_hz, level)
         yield (f"level-{token}", stereo(tone, tone), level,
-               sine_floor(args.sr, args.level_hz, level), None)
+               sine_floor(t, args.sr, args.level_hz, level), None)
 
 
 def make_pans(args):
@@ -254,7 +266,7 @@ def make_pans(args):
     t = timeline(args.sr, args.seconds)
     tone = sine(t, args.level_hz, args.pan_level)
     quiet = np.zeros_like(tone)
-    floor = sine_floor(args.sr, args.level_hz, args.pan_level)
+    floor = sine_floor(t, args.sr, args.level_hz, args.pan_level)
     yield ("pan-hard-left", stereo(tone, quiet), args.pan_level, floor, "right")
     yield ("pan-hard-right", stereo(quiet, tone), args.pan_level, floor, "left")
 
@@ -285,11 +297,13 @@ def make_transients(args):
         sine(t, args.level_hz, args.burst_level)
     yield (f"click-{args.click_rate:g}hz", stereo(click, click),
            args.click_level,
-           gated_floor(args.sr, args.click_hz, args.click_ms, args.click_level),
+           gated_floor(t, args.sr, args.click_hz, args.click_ms,
+                       args.click_level),
            None)
     yield (f"burst-{args.level_hz:g}hz-gated", stereo(burst, burst),
            args.burst_level,
-           gated_floor(args.sr, args.level_hz, args.burst_ms, args.burst_level),
+           gated_floor(t, args.sr, args.level_hz, args.burst_ms,
+                       args.burst_level),
            None)
 
 
@@ -390,6 +404,15 @@ def main():
 
     if args.sr <= 0:
         sys.exit(f"--sr: {args.sr} is not above zero")
+
+    # Both are finite and above zero by now, and their product can still be
+    # nothing: 1e-6 s at 48 kHz rounds to no samples at all, and the empty
+    # array reaches peaks() as "zero-size array to reduction operation
+    # maximum", a traceback rather than an answer. One sample is a strange
+    # file to ask for but a coherent one, so the floor is one.
+    if round(args.sr * args.seconds) < 1:
+        sys.exit(f"--seconds: {args.seconds:g} s at --sr {args.sr} rounds to "
+                 "zero samples, so there would be no file to write")
 
     # Above Nyquist a sine aliases down to some other frequency and the file is
     # silently not the signal it is named after, which is worse than an error.
