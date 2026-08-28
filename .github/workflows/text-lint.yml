@@ -1,0 +1,31 @@
+# Markdown, formatting and spelling checks.
+#
+# This is a separate workflow from ci.yml on purpose. ci.yml carries a
+# paths-ignore for "*.md" and "docs/**", which is right for the Python jobs
+# but would stop these checks from ever running on the changes they exist to
+# check. This workflow deliberately has no paths filter: cspell reads the
+# Python sources too, so every change is in scope.
+
+name: Text lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  text-lint:
+    uses: cboone/gh-actions/.github/workflows/lint-text.yml@91f9abd25d4f82354c0f950dfc8b6d7525b0f5b5 # v3.0.0
+    with:
+      run-markdownlint: true
+      run-prettier: true
+      run-cspell: true
