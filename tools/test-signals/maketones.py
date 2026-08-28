@@ -121,17 +121,25 @@ def peaks(x):
 def sine_floor(sr, hz, level):
     """The lowest peak a correctly generated sine can show at this frequency.
 
-    A sampled sine only reaches its amplitude when a sample lands on the crest.
+    A sampled sine only reaches its amplitude when a sample lands on its crest.
     The worst case is a crest falling exactly between two samples, leaving the
-    larger of them at `cos(pi * f / sr)` of full amplitude: nothing at all for
-    a frequency that divides the sample rate evenly, but 0.2% at 1 kHz against
-    48 kHz and rising steeply from there.
+    larger of them at `cos(pi * f / sr)` of full amplitude: 0.2% down at 1 kHz
+    against 48 kHz, and 50% down at 16 kHz.
+
+    Whether a particular frequency loses anything is a separate question from
+    that bound, and the answer is not "does f divide sr". The crest sits at
+    phase pi/2, so a sample lands on it exactly when `sr / (4 * f)`, in lowest
+    terms, has an odd denominator. A whole number is the easy case and covers
+    all six defaults. 1600 Hz divides 48 kHz exactly 30 times and still peaks
+    0.55% low, because `48000 / 6400` is 15/2 and the crest falls between two
+    samples every time.
 
     The bash script this replaces compared every peak against the requested
-    level within 0.0005, which worked only because every frequency it shipped
-    divides 48 kHz evenly. That test would reject a correct file the moment a
-    caller asked for a frequency of its own. Checking against the bound keeps
-    the check meaningful for any --sines the caller passes."""
+    level within 0.0005, which held only because every frequency it shipped
+    happens to land a sample on the crest at 48 kHz. That test would reject a
+    correct file the moment a caller asked for a frequency of its own.
+    Checking against the bound keeps the check meaningful for any --sines the
+    caller passes."""
     return level * np.cos(np.pi * hz / sr)
 
 
@@ -203,8 +211,8 @@ def render(outdir, sr, name, data, want, floor, silent=None):
                      "channel, expected silence")
 
     # Reported only once it is large enough for the printed figure to say
-    # something. Every frequency that does not divide the sample rate falls a
-    # few parts per million short of its amplitude, and announcing that as
+    # something. A frequency whose crest falls between samples is short by a
+    # few parts per million at the mildest, and announcing that as
     # "0.00% under" would train the reader to skip the line that matters.
     note = f", {silent} silent" if silent is not None else ""
     under = ""
