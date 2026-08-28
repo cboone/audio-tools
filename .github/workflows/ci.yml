@@ -64,7 +64,7 @@ jobs:
     uses: cboone/gh-actions/.github/workflows/lint-github-actions.yml@91f9abd25d4f82354c0f950dfc8b6d7525b0f5b5 # v3.0.0
 
   test-scrut:
-    # Both tools are `uv run --script` shebangs, so uv has to be on PATH before
+    # Every tool is a `uv run --script` shebang, so uv has to be on PATH before
     # scrut runs anything.
     #
     # pipx rather than `pip install --user`: the runner's system Python is
