@@ -123,9 +123,15 @@ def sine_floor(t, sr, hz, level):
 
     Returns zero for a file too short to contain a crest, on the same rule and
     for the same reason as gated_floor below: 0.001 s of 100 Hz covers a tenth
-    of a turn and peaks at 0.289 of its amplitude, which is a correct file that
+    of a turn and reaches 0.577 of its amplitude, which is a correct file that
     the phase bound would reject. The bound assumes a crest is in range, and
     below a quarter period there is nothing to bound.
+
+    That 0.577 is `sin` at the last sample rather than at the nominal end of
+    the file. 48 samples span up to `47 / 48000`, not `0.001`, so the turn
+    covered is 0.1959 rather than 0.2 and the figure is `sin(0.1959 * pi)`, not
+    `sin(0.2 * pi)` which would be 0.588. At `--sine-level 0.5` the tool prints
+    a peak of 0.288573.
 
     A sampled sine only reaches its amplitude when a sample lands on its crest.
     The worst case is a crest falling exactly between two samples, leaving the
