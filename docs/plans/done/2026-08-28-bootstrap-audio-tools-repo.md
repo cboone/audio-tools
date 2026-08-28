@@ -268,3 +268,28 @@ Confirm the reformatted tool still produces the correct verdict end to end:
 This must report **bit-identical**. `probe_noise` is documented as regenerating bit-identically, so any other verdict means the reformat changed behavior.
 
 Then open a PR and confirm every CI job passes, paying particular attention to `test-scrut`: the `uv` install in `scrut-setup-cmd` is the one part of this plan that cannot be validated locally, since it exists specifically to compensate for what the GitHub runner lacks.
+
+## Outcome
+
+Executed 2026-08-28 across eight commits on `chore/bootstrap-repo`. `make test-all` passes locally. Deviations from the plan as written, and why:
+
+| Deviation                                                   | Reason                                                                                                                                                                                         |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CI split into `ci.yml` plus `text-lint.yml`                 | One workflow could not serve both. `ci.yml` needs `paths-ignore` for `*.md` and `docs/**`, which would stop the Markdown and spelling jobs running on exactly the changes they exist to check. |
+| Text checks use the `lint-text.yml` reusable workflow       | It bundles markdownlint, Prettier and cspell with versions pinned by lockfile integrity hashes, rather than three unpinned `npx` invocations.                                                  |
+| Taplo dropped                                               | Not installed, only two small hand-written TOML files, and `reorder_keys` would shuffle the commented entries in `ruff.toml`.                                                                  |
+| `pipx install uv` rather than `pip install --user uv` in CI | The runner's system Python is externally managed (PEP 668), so a `--user` install errors out.                                                                                                  |
+| `tests/scrut/errors.md` added beyond the help-only starter  | Exit codes and stream routing are the tools' real contract and cost four extra cases to pin down.                                                                                              |
+| `--help` expectations use globs                             | Python 3.13 changed argparse's rendering of short/long option pairs. An exact snapshot would have been hostage to whichever interpreter `uv` happened to resolve.                              |
+| Warm-up block at the top of `errors.md`                     | On a cold cache `uv` writes dependency-resolution noise to stderr, which is the stream those tests assert on. Verified: without it, two cases fail on a cold cache, which is every CI run.     |
+| `.github/.markdownlint-cli2.jsonc` added                    | PR and issue templates start at `##` by convention, tripping MD041. Scoped to `.github/` rather than disabling the rule repo-wide.                                                             |
+| Code of Conduct contact is `conduct@snappy.sh`              | Chosen after surveying the existing repos. Matches shannon-entropy, non-shannon-inequalities and zhang-yeung-inequality; publishes no personal address and needs no new domain.                |
+
+Prettier rewrote three emphasis markers in `tools/sampler-nulltest/README.md` from `*zero*` to `_zero_`. Prettier offers no option for this and the two render identically, so it was accepted rather than worked around.
+
+Follow-up issues filed:
+
+- [cboone/audio-tools#6](https://github.com/cboone/audio-tools/issues/6): encode the ~18 documented validation cases as scrut tests.
+- [cboone/gh-actions#82](https://github.com/cboone/gh-actions/issues/82): add a language-runtime setup input to `run-scrut-tests.yml`, so the `pipx` workaround is not needed in the next repo.
+
+Still unverified: the `test-scrut` CI job. It exists to compensate for what the GitHub runner lacks, so it can only be confirmed by a real run.

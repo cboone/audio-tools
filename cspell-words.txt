@@ -68,6 +68,10 @@ scrut
 suba
 subb
 
+# Other repos referenced in docs/plans/
+yeung
+zhang
+
 # Misc
 cooldown
 lockfiles
