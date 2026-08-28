@@ -271,7 +271,15 @@ def plot(r, sr, delay, floor_db, out, src_path, bounce_path):
     ax[0, 1].plot(t, resid, lw=0.8, color="crimson")
     ax[0, 1].set(title=f"Residual, peak {db(np.max(np.abs(resid))):.1f} dBFS",
                  xlabel="ms")
-    ax[0, 1].set_ylim(ax[0, 0].get_ylim())   # same scale, so small looks small
+    # Share the overlay's scale so a small residual reads as small rather than
+    # being autoscaled up to fill the panel, which is the common case and the
+    # whole reason for tying the two together. Treat it as a floor rather than
+    # a fixed scale, though: a polarity-inverted bounce leaves a residual at
+    # twice the source amplitude, and holding that to the source's scale clips
+    # the trace into a solid block that hides how large the difference is.
+    lo, hi = ax[0, 0].get_ylim()
+    span = max(abs(lo), abs(hi), float(np.max(np.abs(resid))) * 1.05)
+    ax[0, 1].set_ylim(-span, span)
 
     # Residual spectrum against the source, with a 6 dB/oct guide. A residual
     # parallel to that guide is a pure fractional delay (the difference of two
