@@ -41,8 +41,9 @@ import os
 import sys
 import warnings
 
-import numpy as np
 import matplotlib
+import numpy as np
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
@@ -50,6 +51,7 @@ EPS = 1e-20
 
 
 # ---------------------------------------------------------------- loading
+
 
 def load(path):
     """Return (samples as (n, channels) float64 in [-1, 1], sample rate, subtype).
@@ -73,7 +75,7 @@ def load(path):
     # turns it into a clean message.
     try:
         import soundfile as sf
-    except Exception:                                  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         sf = None
 
     if sf is not None:
@@ -81,6 +83,7 @@ def load(path):
         return x, sr, sf.info(path).subtype
 
     from scipy.io import wavfile
+
     # A DAW writes chunks scipy has no opinion about (LIST, bext, iXML, cue
     # markers, and so on). Skipping them is correct here, since none of them
     # affect the sample data, so the warning is noise rather than news.
@@ -89,7 +92,7 @@ def load(path):
         sr, raw = wavfile.read(path)
     if raw.ndim == 1:
         raw = raw[:, None]
-    if raw.dtype == np.uint8:                          # 8-bit PCM is unsigned
+    if raw.dtype == np.uint8:  # 8-bit PCM is unsigned
         x = (raw.astype(np.float64) - 128.0) / 128.0
     elif np.issubdtype(raw.dtype, np.integer):
         x = raw.astype(np.float64) / (np.iinfo(raw.dtype).max + 1.0)
@@ -113,10 +116,11 @@ def db(x):
 
 
 def rms(x):
-    return float(np.sqrt(np.mean(x ** 2))) if x.size else 0.0
+    return float(np.sqrt(np.mean(x**2))) if x.size else 0.0
 
 
 # ---------------------------------------------------------------- alignment
+
 
 def integer_delay(a, b):
     """Delay of b relative to a in whole samples, by FFT cross-correlation.
@@ -138,7 +142,7 @@ def align(a, b, delay):
     if delay > 0:
         b = b[delay:]
     elif delay < 0:
-        b = np.concatenate([np.zeros((-delay,) + b.shape[1:], dtype=b.dtype), b])
+        b = np.concatenate([np.zeros((-delay, *b.shape[1:]), dtype=b.dtype), b])
     n = min(len(a), len(b))
     return a[:n], b[:n]
 
@@ -170,7 +174,7 @@ def fractional_delay(a, b, sr, floor_db=-60.0):
     w = mag[keep] ** 2
     # Weighted least squares through the origin: slope = sum(w*x*y)/sum(w*x*x).
     slope = np.sum(w * f[keep] * phase) / max(np.sum(w * f[keep] ** 2), EPS)
-    return slope / (2.0 * np.pi)          # seconds
+    return slope / (2.0 * np.pi)  # seconds
 
 
 def transfer_function(a, b, sr, floor_db=-60.0):
@@ -195,6 +199,7 @@ def transfer_function(a, b, sr, floor_db=-60.0):
 
 
 # ---------------------------------------------------------------- analysis
+
 
 def channel_pairs(xa, xb):
     """Decide which channel of the source to compare against which of the bounce.
@@ -244,8 +249,7 @@ def analyze(a, b, sr, floor_db):
         "tau": fractional_delay(a, b, sr, floor_db),
         "level": db(rms(b)) - db(ra),
         "fit": float(np.dot(a, b) / max(np.dot(a, a), EPS)),
-        "corr": float(np.dot(a, b)
-                      / max(np.sqrt(np.dot(a, a) * np.dot(b, b)), EPS)),
+        "corr": float(np.dot(a, b) / max(np.sqrt(np.dot(a, a) * np.dot(b, b)), EPS)),
         "resid": resid,
         "rel": db(rms(resid)) - db(ra),
         "a": a,
@@ -255,29 +259,36 @@ def analyze(a, b, sr, floor_db):
 
 # ---------------------------------------------------------------- plotting
 
+
 def plot(r, sr, delay, floor_db, out, src_path, bounce_path):
     a, b, resid = r["a"], r["b"], r["resid"]
     t = np.arange(len(a)) / sr * 1000.0
     fig, ax = plt.subplots(2, 2, figsize=(13, 8.0))
     # Name the files on the figure. These get saved, mailed around and compared
     # against each other, and a panel of anonymous noise is no use a week later.
-    fig.suptitle(f"{os.path.basename(src_path)}  ->  "
-                 f"{os.path.basename(bounce_path)}\n"
-                 f"{r['label']}: residual {db(rms(resid)):.1f} dBFS "
-                 f"({r['rel']:+.1f} dB rel. source), "
-                 f"level {r['level']:+.3f} dB, "
-                 f"delay {delay:+d} {r['tau'] * sr:+.3f} samples",
-                 fontsize=10)
+    fig.suptitle(
+        f"{os.path.basename(src_path)}  ->  "
+        f"{os.path.basename(bounce_path)}\n"
+        f"{r['label']}: residual {db(rms(resid)):.1f} dBFS "
+        f"({r['rel']:+.1f} dB rel. source), "
+        f"level {r['level']:+.3f} dB, "
+        f"delay {delay:+d} {r['tau'] * sr:+.3f} samples",
+        fontsize=10,
+    )
 
     ax[0, 0].plot(t, a, lw=0.8, label="source")
     ax[0, 0].plot(t, b, lw=0.8, alpha=0.7, label="bounce")
-    ax[0, 0].set(title=f"Overlay after {delay:+d}-sample alignment",
-                 xlabel="ms", ylabel="amplitude")
+    ax[0, 0].set(
+        title=f"Overlay after {delay:+d}-sample alignment",
+        xlabel="ms",
+        ylabel="amplitude",
+    )
     ax[0, 0].legend(fontsize=8)
 
     ax[0, 1].plot(t, resid, lw=0.8, color="crimson")
-    ax[0, 1].set(title=f"Residual, peak {db(np.max(np.abs(resid))):.1f} dBFS",
-                 xlabel="ms")
+    ax[0, 1].set(
+        title=f"Residual, peak {db(np.max(np.abs(resid))):.1f} dBFS", xlabel="ms"
+    )
     # Share the overlay's scale so a small residual reads as small rather than
     # being autoscaled up to fill the panel, which is the common case and the
     # whole reason for tying the two together. Treat it as a floor rather than
@@ -300,10 +311,21 @@ def plot(r, sr, delay, floor_db, out, src_path, bounce_path):
     ax[1, 0].semilogx(f, db(Sa / ref), lw=0.8, label="source")
     ax[1, 0].semilogx(f, db(Sr / ref), lw=0.8, color="crimson", label="residual")
     guide = db(Sr / ref)[np.argmin(np.abs(f - 1000.0))]
-    ax[1, 0].semilogx(f[1:], guide + 20 * np.log10(f[1:] / 1000.0),
-                      ls=":", lw=0.9, color="gray", label="+6 dB/oct")
-    ax[1, 0].set(title="Residual vs. source spectrum", xlabel="Hz", ylabel="dB",
-                 xlim=(20, sr / 2), ylim=(-160, 5))
+    ax[1, 0].semilogx(
+        f[1:],
+        guide + 20 * np.log10(f[1:] / 1000.0),
+        ls=":",
+        lw=0.9,
+        color="gray",
+        label="+6 dB/oct",
+    )
+    ax[1, 0].set(
+        title="Residual vs. source spectrum",
+        xlabel="Hz",
+        ylabel="dB",
+        xlim=(20, sr / 2),
+        ylim=(-160, 5),
+    )
     ax[1, 0].legend(fontsize=8)
 
     fh, H = transfer_function(a, b, sr, floor_db)
@@ -322,11 +344,15 @@ def plot(r, sr, delay, floor_db, out, src_path, bounce_path):
         hi = min(60.0, max(6.0, float(np.ceil(finite.max() / 6.0) * 6.0)))
     else:
         lo, hi = -6.0, 6.0
-    axr.set(title="Estimated transfer function |B/A| (flat 0 dB = transparent)",
-            xlabel="Hz", ylabel="dB", xlim=(20, sr / 2), ylim=(lo, hi))
+    axr.set(
+        title="Estimated transfer function |B/A| (flat 0 dB = transparent)",
+        xlabel="Hz",
+        ylabel="dB",
+        xlim=(20, sr / 2),
+        ylim=(lo, hi),
+    )
     axp = axr.twinx()
-    axp.semilogx(fh, np.degrees(np.angle(H)), lw=0.5,
-                 color="darkorange", alpha=0.6)
+    axp.semilogx(fh, np.degrees(np.angle(H)), lw=0.5, color="darkorange", alpha=0.6)
     axp.set_ylabel("phase (deg)", color="darkorange")
     axp.set_ylim(-180, 180)
 
@@ -340,17 +366,23 @@ def plot(r, sr, delay, floor_db, out, src_path, bounce_path):
 
 # ---------------------------------------------------------------- main
 
+
 def main():
     p = argparse.ArgumentParser(
         description="Measure whether a bounce is a transparent pass-through "
-                    "of its source.")
+        "of its source."
+    )
     # Not "wav": with libsndfile behind it this reads AIFF and CAF too, and a
     # DAW bounce is not always a WAV.
     p.add_argument("a", help="source audio file (what you fed the sampler)")
     p.add_argument("b", help="bounced audio file (what came back out)")
     p.add_argument("-o", "--out", default="nulltest.png")
-    p.add_argument("--floor", type=float, default=-60.0,
-                   help="dB below source peak spectrum to ignore (default -60)")
+    p.add_argument(
+        "--floor",
+        type=float,
+        default=-60.0,
+        help="dB below source peak spectrum to ignore (default -60)",
+    )
     args = p.parse_args()
 
     # libsndfile reports a missing file as "System error", which is no help at
@@ -361,7 +393,7 @@ def main():
     try:
         xa, sra, suba = load(args.a)
         xb, srb, subb = load(args.b)
-    except Exception as exc:                       # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         sys.exit(f"could not read audio: {exc}")
 
     if sra != srb:
@@ -369,11 +401,9 @@ def main():
     sr = sra
 
     print(f"source           : {args.a}")
-    print(f"                   {len(xa)} samples, {xa.shape[1]} ch, "
-          f"{sr} Hz, {suba}")
+    print(f"                   {len(xa)} samples, {xa.shape[1]} ch, {sr} Hz, {suba}")
     print(f"bounce           : {args.b}")
-    print(f"                   {len(xb)} samples, {xb.shape[1]} ch, "
-          f"{sr} Hz, {subb}")
+    print(f"                   {len(xb)} samples, {xb.shape[1]} ch, {sr} Hz, {subb}")
     if min(len(xa), len(xb)) < 64:
         sys.exit("files are too short to analyze")
 
@@ -390,11 +420,14 @@ def main():
     prelim, _, _ = channel_pairs(xa, xb)
     ref_a, ref_b = max(
         ((ca, cb) for _, ca, cb in prelim),
-        key=lambda p: min(float(np.dot(p[0], p[0])), float(np.dot(p[1], p[1]))))
+        key=lambda p: min(float(np.dot(p[0], p[0])), float(np.dot(p[1], p[1]))),
+    )
     delay = integer_delay(ref_a, ref_b)
     xa, xb = align(xa, xb, delay)
-    print(f"integer delay    : {delay:+d} samples "
-          f"({1000.0 * delay / sr:+.4f} ms)   [+ = bounce late]")
+    print(
+        f"integer delay    : {delay:+d} samples "
+        f"({1000.0 * delay / sr:+.4f} ms)   [+ = bounce late]"
+    )
 
     pairs, extra_a, extra_b = channel_pairs(xa, xb)
 
@@ -421,47 +454,65 @@ def main():
         print("\nVERDICT: bit-identical. The signal path is transparent.")
         aside = []
         if delay:
-            aside.append(f"a {delay:+d}-sample start offset, which is playback "
-                         "start position or plugin delay compensation")
+            aside.append(
+                f"a {delay:+d}-sample start offset, which is playback "
+                "start position or plugin delay compensation"
+            )
         if shape_a[0] != shape_b[0]:
-            aside.append("a length difference, the bounce region running past "
-                         "the end of the sample")
+            aside.append(
+                "a length difference, the bounce region running past "
+                "the end of the sample"
+            )
         if shape_a[1] != shape_b[1] and extra_b:
-            aside.append(f"a channel count of {shape_a[1]} against "
-                         f"{shape_b[1]}, where the bounce channels with no "
-                         f"source counterpart ({named(extra_b)}) carry digital "
-                         "silence")
+            aside.append(
+                f"a channel count of {shape_a[1]} against "
+                f"{shape_b[1]}, where the bounce channels with no "
+                f"source counterpart ({named(extra_b)}) carry digital "
+                "silence"
+            )
         elif shape_b[1] > shape_a[1]:
-            aside.append(f"a {shape_a[1]}-to-{shape_b[1]} channel expansion, "
-                         "every bounce channel matching the source exactly")
+            aside.append(
+                f"a {shape_a[1]}-to-{shape_b[1]} channel expansion, "
+                "every bounce channel matching the source exactly"
+            )
         elif shape_a[1] != shape_b[1]:
             # Reaching a pass with fewer bounce channels than source channels
             # means every source channel equalled the one bounce channel, so
             # the source was multi-mono and the fold-down lost nothing.
-            aside.append(f"a {shape_a[1]}-to-{shape_b[1]} channel fold-down, "
-                         "every source channel matching the bounce exactly")
+            aside.append(
+                f"a {shape_a[1]}-to-{shape_b[1]} channel fold-down, "
+                "every source channel matching the bounce exactly"
+            )
         if suba != subb:
             aside.append(f"a change of sample format from {suba} to {subb}")
         if aside:
-            print("         Every sample that lines up matches. What differs "
-                  "is " + "; ".join(aside) + ".")
+            print(
+                "         Every sample that lines up matches. What differs "
+                "is " + "; ".join(aside) + "."
+            )
         return
 
     # Every paired channel matched, so the residual is not the story and the
     # usual verdict would bury the real one under a -240 dBFS reading. Say what
     # actually disqualified it instead.
     if pairs_exact:
-        print("\nVERDICT: not transparent. Every channel that could be paired "
-              "matches the source exactly, but the channel layout leaves "
-              "something unaccounted for.")
+        print(
+            "\nVERDICT: not transparent. Every channel that could be paired "
+            "matches the source exactly, but the channel layout leaves "
+            "something unaccounted for."
+        )
         if extra_a:
-            print(f"  the bounce has no counterpart for source channels "
-                  f"{named(extra_a)}, so that audio was dropped rather than "
-                  "passed through.")
+            print(
+                f"  the bounce has no counterpart for source channels "
+                f"{named(extra_a)}, so that audio was dropped rather than "
+                "passed through."
+            )
         if unchecked_b:
-            print(f"  bounce channels {named(unchecked_b)} have no source "
-                  "counterpart and carry content, so they were compared "
-                  "against nothing and cannot count toward a pass.")
+            print(
+                f"  bounce channels {named(unchecked_b)} have no source "
+                "counterpart and carry content, so they were compared "
+                "against nothing and cannot count toward a pass."
+            )
         return
 
     results = []
@@ -470,59 +521,84 @@ def main():
         r["label"] = label
         results.append(r)
         print(f"\n{label}")
-        print(f"  fractional delay : {r['tau'] * sr:+.4f} samples "
-              f"({r['tau'] * 1e6:+.2f} us)")
+        print(
+            f"  fractional delay : {r['tau'] * sr:+.4f} samples "
+            f"({r['tau'] * 1e6:+.2f} us)"
+        )
         print(f"  level (rms b/a)  : {r['level']:+.4f} dB")
-        print(f"  best-fit gain    : {db(r['fit']):+.4f} dB"
-              f"{'  (polarity inverted)' if r['fit'] < 0 else ''}")
+        print(
+            f"  best-fit gain    : {db(r['fit']):+.4f} dB"
+            f"{'  (polarity inverted)' if r['fit'] < 0 else ''}"
+        )
         print(f"  correlation      : {r['corr']:+.8f}")
-        print(f"  residual RMS     : {db(rms(r['resid'])):.1f} dBFS  "
-              f"({r['rel']:+.1f} dB rel. source)")
+        print(
+            f"  residual RMS     : {db(rms(r['resid'])):.1f} dBFS  "
+            f"({r['rel']:+.1f} dB rel. source)"
+        )
         print(f"  residual peak    : {db(np.max(np.abs(r['resid']))):.1f} dBFS")
 
     worst = max(results, key=lambda r: r["rel"])
-    print(f"\nVERDICT: not transparent. Largest residual is "
-          f"{db(rms(worst['resid'])):.1f} dBFS on {worst['label']}, "
-          f"{worst['rel']:+.1f} dB relative to the source.")
+    print(
+        f"\nVERDICT: not transparent. Largest residual is "
+        f"{db(rms(worst['resid'])):.1f} dBFS on {worst['label']}, "
+        f"{worst['rel']:+.1f} dB relative to the source."
+    )
 
     flipped = [r["label"] for r in results if r["corr"] < 0]
     if flipped:
-        print(f"  polarity inverted on {', '.join(flipped)}. The residual there "
-              "is the sum of the two signals rather than their difference, so "
-              "it reads about 6 dB high.")
+        print(
+            f"  polarity inverted on {', '.join(flipped)}. The residual there "
+            "is the sum of the two signals rather than their difference, so "
+            "it reads about 6 dB high."
+        )
     if any(abs(r["tau"] * sr) > 0.1 for r in results):
-        print("  a sub-sample offset this large implies resampling or "
-              "transposition, or else a minimum-phase filter, whose group delay "
-              "registers the same way. Check the |B/A| panel to tell them apart.")
+        print(
+            "  a sub-sample offset this large implies resampling or "
+            "transposition, or else a minimum-phase filter, whose group delay "
+            "registers the same way. Check the |B/A| panel to tell them apart."
+        )
     if any(abs(r["corr"]) < 0.9999 for r in results):
-        print("  correlation is short of 1, so no single scalar gain explains "
-              "the bounce. Read the |B/A| panel rather than the gain figures.")
+        print(
+            "  correlation is short of 1, so no single scalar gain explains "
+            "the bounce. Read the |B/A| panel rather than the gain figures."
+        )
     exact = [r["label"] for r in results if not np.any(r["resid"])]
     if exact:
-        print(f"  residual is exactly zero on {', '.join(exact)}, so whatever "
-              "happened did not happen there.")
+        print(
+            f"  residual is exactly zero on {', '.join(exact)}, so whatever "
+            "happened did not happen there."
+        )
     if suba != subb:
-        print(f"  sample formats differ ({suba} source, {subb} bounce), which "
-              "is not by itself a change to the signal.")
+        print(
+            f"  sample formats differ ({suba} source, {subb} bounce), which "
+            "is not by itself a change to the signal."
+        )
     if xa.shape[1] != xb.shape[1]:
         if xa.shape[1] == 1 or xb.shape[1] == 1:
-            print(f"  channel counts differ ({xa.shape[1]} source, "
-                  f"{xb.shape[1]} bounce), so the single channel was compared "
-                  "against every channel on the other side in turn.")
+            print(
+                f"  channel counts differ ({xa.shape[1]} source, "
+                f"{xb.shape[1]} bounce), so the single channel was compared "
+                "against every channel on the other side in turn."
+            )
         else:
-            print(f"  channel counts differ ({xa.shape[1]} source, "
-                  f"{xb.shape[1]} bounce), and channels were paired up by "
-                  "position.")
+            print(
+                f"  channel counts differ ({xa.shape[1]} source, "
+                f"{xb.shape[1]} bounce), and channels were paired up by "
+                "position."
+            )
     if extra_a:
-        print(f"  source channels with no counterpart in the bounce: "
-              f"{named(extra_a)}. That audio was dropped rather than passed "
-              "through, which is never transparent.")
+        print(
+            f"  source channels with no counterpart in the bounce: "
+            f"{named(extra_a)}. That audio was dropped rather than passed "
+            "through, which is never transparent."
+        )
     if unchecked_b:
-        print(f"  bounce channels with no source counterpart, carrying content "
-              f"that was compared against nothing: {named(unchecked_b)}.")
+        print(
+            f"  bounce channels with no source counterpart, carrying content "
+            f"that was compared against nothing: {named(unchecked_b)}."
+        )
     if len(results) > 1:
-        print(f"  plotting {worst['label']}, the channel with the largest "
-              "residual.")
+        print(f"  plotting {worst['label']}, the channel with the largest residual.")
 
     plot(worst, sr, delay, args.floor, args.out, args.a, args.b)
 

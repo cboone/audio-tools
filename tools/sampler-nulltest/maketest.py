@@ -100,18 +100,23 @@ def click(sr, seconds=0.5, peak_dbfs=-6.0):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--sr", type=int, default=48000,
-                   help="sample rate; MATCH YOUR LOGIC PROJECT")
+    p.add_argument(
+        "--sr", type=int, default=48000, help="sample rate; MATCH YOUR LOGIC PROJECT"
+    )
     p.add_argument("--outdir", default=".")
     args = p.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
-    for name, sig in (("probe_noise", white_noise(args.sr)),
-                      ("probe_sweep", log_sweep(args.sr)),
-                      ("probe_click", click(args.sr))):
+    for name, sig in (
+        ("probe_noise", white_noise(args.sr)),
+        ("probe_sweep", log_sweep(args.sr)),
+        ("probe_click", click(args.sr)),
+    ):
         path = os.path.join(args.outdir, f"{name}.wav")
         wavfile.write(path, args.sr, sig.astype(np.float32))
-        print(f"wrote {path}  ({len(sig)/args.sr:.2f} s @ {args.sr} Hz, 32-bit float)")
+        print(
+            f"wrote {path}  ({len(sig) / args.sr:.2f} s @ {args.sr} Hz, 32-bit float)"
+        )
 
 
 if __name__ == "__main__":

@@ -1,0 +1,13 @@
+[extend]
+# Use the default gitleaks rules as a base.
+useDefault = true
+
+[allowlist]
+# This repo has no lockfiles and no vendored dependencies: each tool declares
+# its own dependencies inline via PEP 723, so the usual lockfile exclusions do
+# not apply.
+#
+# The probe WAVs are committed build artifacts, reproducible from maketest.py.
+# They are 32-bit float audio, so high-entropy byte runs are expected and mean
+# nothing; excluding them avoids false positives on that entropy.
+paths = ['''tools/sampler-nulltest/probe/.*\.wav''']

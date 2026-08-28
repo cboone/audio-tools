@@ -1,0 +1,60 @@
+# Markdown, formatting and spelling checks.
+#
+# This is a separate workflow from ci.yml on purpose. ci.yml carries a
+# paths-ignore for "*.md" and "docs/**", which is right for the Python jobs
+# but would stop these checks from ever running on the changes they exist to
+# check. This workflow deliberately has no paths filter: cspell reads the
+# Python sources too, so every change is in scope.
+#
+# The steps are inline rather than a call to
+# cboone/gh-actions/.github/workflows/lint-text.yml. At v3.0.0, the latest
+# release, that workflow's only install path derives a raw.githubusercontent
+# URL from github.job_workflow_sha and exits 1 when it is empty, which is what
+# it is here. See cboone/gh-actions#83. Switch back once a release ships with
+# either a fix or the use-consumer-versions input that main has gained.
+#
+# The tools come from this repo's package-lock.json, the same versions
+# `make text-lint` runs, with npm ci enforcing per-package sha512 integrity.
+
+name: Text lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  text-lint:
+    name: Text lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.20.0"
+          cache: npm
+
+      - name: Install the pinned linters
+        run: npm ci --ignore-scripts --include=dev --no-audit --no-fund
+
+      - name: markdownlint
+        run: npm run --silent lint:md
+
+      - name: Prettier
+        run: npm run --silent format:check
+
+      - name: cspell
+        run: npm run --silent spell

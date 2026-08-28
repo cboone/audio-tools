@@ -1,0 +1,8 @@
+// Directory-scoped overrides for .github/, merged over the repo-root config.
+{
+  "config": {
+    // GitHub PR and issue templates start at "## " by convention: the title
+    // comes from the PR or issue itself, not from the file.
+    "MD041": false,
+  },
+}
