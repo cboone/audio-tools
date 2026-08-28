@@ -219,3 +219,4 @@ __marimo__/
 
 # Tool output
 tools/sampler-nulltest/*.png
+tools/test-signals/*.wav
