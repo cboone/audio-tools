@@ -63,27 +63,39 @@ def load(path):
     The stored subtype is returned rather than a raw array. A 24-bit source and
     a 32-bit float bounce holding the same values differ in format but not in
     signal, and for a transparency test that is a pass, not a failure."""
+    # Deciding which backend to use is kept separate from reading the file, so
+    # the two failures stay distinguishable. Import is caught broadly and not
+    # just on ImportError: soundfile binds libsndfile through CFFI at import
+    # time, so a missing or broken shared library arrives as OSError. Either way
+    # the backend is unusable and scipy takes over, which is the entire point of
+    # keeping a fallback. A failure from the READ is left to propagate, because
+    # that one means the file is the problem rather than the backend, and main()
+    # turns it into a clean message.
     try:
         import soundfile as sf
+    except Exception:                                  # noqa: BLE001
+        sf = None
+
+    if sf is not None:
         x, sr = sf.read(path, always_2d=True, dtype="float64")
         return x, sr, sf.info(path).subtype
-    except ImportError:
-        from scipy.io import wavfile
-        # A DAW writes chunks scipy has no opinion about (LIST, bext, iXML, cue
-        # markers, and so on). Skipping them is correct here, since none of them
-        # affect the sample data, so the warning is noise rather than news.
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", wavfile.WavFileWarning)
-            sr, raw = wavfile.read(path)
-        if raw.ndim == 1:
-            raw = raw[:, None]
-        if raw.dtype == np.uint8:                      # 8-bit PCM is unsigned
-            x = (raw.astype(np.float64) - 128.0) / 128.0
-        elif np.issubdtype(raw.dtype, np.integer):
-            x = raw.astype(np.float64) / (np.iinfo(raw.dtype).max + 1.0)
-        else:
-            x = raw.astype(np.float64)
-        return x, sr, str(raw.dtype)
+
+    from scipy.io import wavfile
+    # A DAW writes chunks scipy has no opinion about (LIST, bext, iXML, cue
+    # markers, and so on). Skipping them is correct here, since none of them
+    # affect the sample data, so the warning is noise rather than news.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", wavfile.WavFileWarning)
+        sr, raw = wavfile.read(path)
+    if raw.ndim == 1:
+        raw = raw[:, None]
+    if raw.dtype == np.uint8:                          # 8-bit PCM is unsigned
+        x = (raw.astype(np.float64) - 128.0) / 128.0
+    elif np.issubdtype(raw.dtype, np.integer):
+        x = raw.astype(np.float64) / (np.iinfo(raw.dtype).max + 1.0)
+    else:
+        x = raw.astype(np.float64)
+    return x, sr, str(raw.dtype)
 
 
 def db(x):

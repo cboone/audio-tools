@@ -13,6 +13,7 @@ The procedure opens with a control test: bounce the probe through a plain audio 
 - Both gain figures are reported on purpose. `level` is the RMS ratio and `best-fit gain` is the least-squares scalar, and they diverge by exactly the correlation. Do not collapse them back into one number: a single figure is how a level drop previously got reported as a boost.
 - `probe/*.wav` are committed build artifacts, reproducible from `maketest.py --sr 48000`. `probe_noise` and `probe_click` regenerate bit-identically. `probe_sweep` varies by roughly one float32 ULP on a handful of samples, depending on the libm behind `numpy`.
 - The scripts carry PEP 723 inline metadata and a `uv run --script` shebang, so `uv run nulltest.py ...` or `./nulltest.py ...` needs no environment setup. System `python3` has no `scipy`, so plain `python3 nulltest.py` will fail.
+- In `load()`, choosing the backend is deliberately separate from reading the file, and the import is caught on bare `Exception` rather than `ImportError`. `soundfile` binds libsndfile through CFFI at import time, so a missing or broken shared library arrives as `OSError` and a narrower catch skips the fallback that exists precisely for that case. Do not fold the read back inside that `try`: a failure there means the file is bad, not the backend, and it must keep propagating to the handler in `main()`.
 
 ## Status
 
