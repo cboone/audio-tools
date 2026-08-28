@@ -46,7 +46,7 @@ make test-scrut-update  # regenerate scrut snapshots after intentional changes
 make test-all           # everything
 ```
 
-The root `package.json` does not make this a JavaScript project. It pins `markdownlint-cli2`, `prettier` and `cspell` so `make text-lint` and CI run identical versions, and because `lint-text.yml` cannot fetch its own pinned lockfile here (see cboone/gh-actions#83). Do not add runtime JavaScript dependencies to it.
+The root `package.json` does not make this a JavaScript project. It pins `markdownlint-cli2`, `prettier` and `cspell` so `make text-lint` and `.github/workflows/text-lint.yml` run identical versions. Those steps are inline rather than a call to the shared `lint-text.yml`, which is unusable here until cboone/gh-actions#83 ships in a release. Do not add runtime JavaScript dependencies to `package.json`.
 
 Ruff configuration lives in `ruff.toml`. Two rule choices are intentional and should not be "cleaned up":
 

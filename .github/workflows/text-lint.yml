@@ -5,6 +5,16 @@
 # but would stop these checks from ever running on the changes they exist to
 # check. This workflow deliberately has no paths filter: cspell reads the
 # Python sources too, so every change is in scope.
+#
+# The steps are inline rather than a call to
+# cboone/gh-actions/.github/workflows/lint-text.yml. At v3.0.0, the latest
+# release, that workflow's only install path derives a raw.githubusercontent
+# URL from github.job_workflow_sha and exits 1 when it is empty, which is what
+# it is here. See cboone/gh-actions#83. Switch back once a release ships with
+# either a fix or the use-consumer-versions input that main has gained.
+#
+# The tools come from this repo's package-lock.json, the same versions
+# `make text-lint` runs, with npm ci enforcing per-package sha512 integrity.
 
 name: Text lint
 
@@ -24,19 +34,27 @@ permissions:
 
 jobs:
   text-lint:
-    uses: cboone/gh-actions/.github/workflows/lint-text.yml@91f9abd25d4f82354c0f950dfc8b6d7525b0f5b5 # v3.0.0
-    with:
-      run-markdownlint: true
-      run-prettier: true
-      run-cspell: true
-      # Install the linters from this repo's own package-lock.json rather than
-      # the one inside gh-actions.
-      #
-      # Required, not preferred: with the default (false), lint-text.yml fetches
-      # its pinned lockfile from raw.githubusercontent.com using
-      # github.job_workflow_sha, and that context value arrives empty here, so
-      # the install step fails before any linter runs. See cboone/gh-actions#83.
-      #
-      # It is also the better arrangement independently: `make text-lint` and CI
-      # now run byte-identical tool versions, where before they could drift.
-      use-consumer-versions: true
+    name: Text lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.20.0"
+          cache: npm
+
+      - name: Install the pinned linters
+        run: npm ci --ignore-scripts --include=dev --no-audit --no-fund
+
+      - name: markdownlint
+        run: npm run --silent lint:md
+
+      - name: Prettier
+        run: npm run --silent format:check
+
+      - name: cspell
+        run: npm run --silent spell
