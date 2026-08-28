@@ -1,6 +1,6 @@
 # Sampler transparency null test
 
-Does a sampler pass a sample through unaltered when every control is nominally off? Not "do these two files sound similar": the question is whether the difference is *zero*, and if not, exactly what non-zero thing it is.
+Does a sampler pass a sample through unaltered when every control is nominally off? Not "do these two files sound similar": the question is whether the difference is _zero_, and if not, exactly what non-zero thing it is.
 
 Written against Logic Pro's Sampler and Quick Sampler, but nothing in the analysis is Logic-specific.
 
@@ -122,7 +122,7 @@ Otherwise, characterize the instrument with the noise probe first, then run the 
 
 ## Method
 
-A null test is not a general A/B comparison, and the difference matters. In a general comparison you divide out level and time offset as nuisances so you can see the shape difference underneath. In a transparency test, level and time offset *are* findings. So `nulltest.py` measures both and reports them, applies integer-sample alignment only (because you cannot compute a residual at all without it), and never applies the gain correction.
+A null test is not a general A/B comparison, and the difference matters. In a general comparison you divide out level and time offset as nuisances so you can see the shape difference underneath. In a transparency test, level and time offset _are_ findings. So `nulltest.py` measures both and reports them, applies integer-sample alignment only (because you cannot compute a residual at all without it), and never applies the gain correction.
 
 Four things get separated.
 
@@ -181,7 +181,7 @@ Channel strip and bounce:
 
 ## Faster in-Logic version
 
-You can null without exporting. Put the original file on one audio track at unity and the sampler on another, add a Gain plugin with polarity inverted on one of them, and sum. If the meter does not hit -inf, something is happening, and the reading tells you roughly how much. Use the scripts when you need to know *what*.
+You can null without exporting. Put the original file on one audio track at unity and the sampler on another, add a Gain plugin with polarity inverted on one of them, and sum. If the meter does not hit -inf, something is happening, and the reading tells you roughly how much. Use the scripts when you need to know _what_.
 
 ## Limitations
 

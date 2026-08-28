@@ -6,9 +6,9 @@ Each tool is self-contained and lives in its own directory under `tools/`, with 
 
 ## Tools
 
-| Tool                                                 | Question it answers                                                                    |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| [`sampler-nulltest`](./tools/sampler-nulltest/)      | Does a sampler pass a sample through unaltered, and if not, exactly what did it change? |
+| Tool                                            | Question it answers                                                                     |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------- |
+| [`sampler-nulltest`](./tools/sampler-nulltest/) | Does a sampler pass a sample through unaltered, and if not, exactly what did it change? |
 
 ## Installation
 

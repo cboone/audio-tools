@@ -1,0 +1,71 @@
+# Project vocabulary for cspell. One word per line.
+# Regenerate candidates with:
+#   cspell . --unique --words-only --no-progress | sort -uf
+
+# Audio and signal processing
+bext
+crossfades
+dbfs
+declick
+downmixed
+Hann
+hanning
+lowpass
+nyquist
+requantization
+resampling
+sidelobe
+unwindowed
+
+# Libraries and file formats
+CFFI
+libm
+libsndfile
+matplotlib
+numpy
+pyplot
+scipy
+soundfile
+wavfile
+
+# numpy / scipy / matplotlib API identifiers
+axhline
+darkorange
+figsize
+fontsize
+iinfo
+irfft
+issubdtype
+rfft
+rfftfreq
+semilogx
+suptitle
+twinx
+xlabel
+xlim
+ylabel
+ylim
+
+# Python tooling
+isort
+noqa
+pycache
+pycodestyle
+pyflakes
+pyproject
+pytest
+pyupgrade
+venv
+
+# This project
+cboone
+maketest
+nulltest
+resid
+scrut
+suba
+subb
+
+# Misc
+lockfiles
+Taplo

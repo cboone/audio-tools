@@ -16,13 +16,13 @@ This is not a packaging gap to be fixed. Self-contained scripts with inline depe
 
 ## Decisions already made
 
-| Decision            | Choice                                                                                              |
-| ------------------- | --------------------------------------------------------------------------------------------------- |
-| Python formatting   | Adopt `ruff format` fully, with a one-time `style:` reformat commit up front                        |
-| Test scope          | Starter scrut tests only (`--help` snapshots); the 18 documented validation cases become an issue   |
-| Optional extras     | All four: secret scanning, community files, cspell, expanded root README                            |
-| Ruff config file    | `ruff.toml` at the root, not `pyproject.toml`, because this repo is not and will not be a package   |
-| Installers          | Not applicable: `uv run --script` tools produce no distributable binary                             |
+| Decision          | Choice                                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------- |
+| Python formatting | Adopt `ruff format` fully, with a one-time `style:` reformat commit up front                      |
+| Test scope        | Starter scrut tests only (`--help` snapshots); the 18 documented validation cases become an issue |
+| Optional extras   | All four: secret scanning, community files, cspell, expanded root README                          |
+| Ruff config file  | `ruff.toml` at the root, not `pyproject.toml`, because this repo is not and will not be a package |
+| Installers        | Not applicable: `uv run --script` tools produce no distributable binary                           |
 
 ## Verified findings that shape the plan
 
@@ -121,14 +121,15 @@ Invoke the `set-up-linters` skill, telling it the project is **Python** (its own
 
 Request:
 
-| Tool               | Config file                                   | Notes                                                        |
-| ------------------ | --------------------------------------------- | ------------------------------------------------------------ |
-| Prettier           | `.prettierrc.json`, `.prettierignore`         | `printWidth: 10000`, `proseWrap: preserve`                   |
-| EditorConfig       | `.editorconfig`                               | Adapted to Python and Markdown                               |
-| markdownlint-cli2  | `.markdownlint-cli2.jsonc`                    | `MD013: false`; add `MD014: false` in step 7                 |
-| cspell             | `cspell.jsonc`, `cspell-words.txt`            | Seed the word list, see below                                |
-| Actionlint         | (no config)                                   | Once `.github/workflows/` exists                             |
-| Taplo              | `taplo.toml`                                  | For `ruff.toml`, `.gitleaks.toml`, `cspell` TOML if any      |
+| Tool              | Config file                           | Notes                                        |
+| ----------------- | ------------------------------------- | -------------------------------------------- |
+| Prettier          | `.prettierrc.json`, `.prettierignore` | `printWidth: 10000`, `proseWrap: preserve`   |
+| EditorConfig      | `.editorconfig`                       | Adapted to Python and Markdown               |
+| markdownlint-cli2 | `.markdownlint-cli2.jsonc`            | `MD013: false`; add `MD014: false` in step 7 |
+| cspell            | `cspell.jsonc`, `cspell-words.txt`    | Seed the word list, see below                |
+| Actionlint        | (no config)                           | Once `.github/workflows/` exists             |
+
+Taplo was considered and dropped. It is not installed on this machine, the repo has only two small hand-written TOML files (`ruff.toml` and `.gitleaks.toml`), and its `reorder_keys` default would shuffle the commented entries in `ruff.toml`. Nothing Prettier covers is lost, since Prettier does not handle TOML either.
 
 Seed `cspell-words.txt` with the domain vocabulary actually used in the prose, at minimum: `nyquist`, `libsndfile`, `iXML`, `bext`, `declick`, `dBFS`, `argparse`, `scipy`, `numpy`, `matplotlib`, `soundfile`, `resampling`, `passthrough`, `nulltest`, `maketest`, `Logic`'s `Flex`, and the `ULP`, `SRC`, `PDC`, `BIP` initialisms.
 
@@ -140,14 +141,14 @@ Invoke the `set-up-ci` skill for **Python**, but the stock Python template does 
 
 Produce `.github/workflows/ci.yml` with these jobs:
 
-| Job          | Command                                    | Source                                    |
-| ------------ | ------------------------------------------ | ----------------------------------------- |
-| `lint`       | `uvx ruff check .`                         | Python CI template, unchanged             |
-| `format`     | `uvx ruff format --check .`                | Python CI template, unchanged             |
-| `markdown`   | `markdownlint-cli2 "**/*.md"`              | set-up-linters CI reference               |
-| `spelling`   | `cboone/gh-actions` run-cspell             | set-up-linters CI reference               |
-| `actionlint` | `raven-actions/actionlint`                 | set-up-linters CI reference               |
-| `test-scrut` | reusable workflow                          | Added in step 7                           |
+| Job          | Command                        | Source                        |
+| ------------ | ------------------------------ | ----------------------------- |
+| `lint`       | `uvx ruff check .`             | Python CI template, unchanged |
+| `format`     | `uvx ruff format --check .`    | Python CI template, unchanged |
+| `markdown`   | `markdownlint-cli2 "**/*.md"`  | set-up-linters CI reference   |
+| `spelling`   | `cboone/gh-actions` run-cspell | set-up-linters CI reference   |
+| `actionlint` | `raven-actions/actionlint`     | set-up-linters CI reference   |
+| `test-scrut` | reusable workflow              | Added in step 7               |
 
 Keep the template's `paths-ignore`, concurrency group, `permissions: contents: read`, and `timeout-minutes`. Note that `paths-ignore` only ignores root-level `*.md`, so `tests/scrut/*.md` still triggers CI, which is what we want.
 
@@ -178,13 +179,13 @@ It will detect the `Makefile` from step 4 and use `make lint` / `make fmt`. Supp
 
 Invoke the `add-scrut-cli-tests` skill. Both scripts are interpreted CLIs with no build step, so drop the `build` dependency from the Makefile targets.
 
-| Setting          | Value                                     |
-| ---------------- | ----------------------------------------- |
-| Binaries         | `nulltest.py`, `maketest.py`              |
-| Env var names    | `NULLTEST_BIN`, `MAKETEST_BIN`            |
-| Binary paths     | `./tools/sampler-nulltest/<script>.py`    |
-| Test directory   | `tests/scrut/`                            |
-| Build required   | No                                        |
+| Setting        | Value                                  |
+| -------------- | -------------------------------------- |
+| Binaries       | `nulltest.py`, `maketest.py`           |
+| Env var names  | `NULLTEST_BIN`, `MAKETEST_BIN`         |
+| Binary paths   | `./tools/sampler-nulltest/<script>.py` |
+| Test directory | `tests/scrut/`                         |
+| Build required | No                                     |
 
 Create `tests/scrut/help.md` only, covering `--help` for both scripts. Skip `version.md`: neither script has a `--version` flag.
 
@@ -219,30 +220,29 @@ Also file an issue on `cboone/gh-actions` requesting a first-class language-setu
 
 ## Files created or modified
 
-| Path                                     | Action   | Step |
-| ---------------------------------------- | -------- | ---- |
-| `README.md`                              | Replaced | 1    |
-| `AGENTS.md`, `CLAUDE.md`                 | Created  | 1    |
-| `CHANGELOG.md`                           | Created  | 1    |
-| `.claude/settings.json`                  | Created  | 1    |
-| `.github/copilot-instructions.md`        | Created  | 1    |
-| `docs/plans/{todo,done}/.gitkeep`        | Created  | 1    |
-| `tools/sampler-nulltest/AGENTS.md`       | Renamed  | 1    |
-| `ruff.toml`                              | Created  | 2    |
-| `tools/sampler-nulltest/*.py`            | Modified | 2    |
-| `.editorconfig`, `.prettierrc.json`      | Created  | 3    |
-| `.markdownlint-cli2.jsonc`               | Created  | 3, 7 |
-| `cspell.jsonc`, `cspell-words.txt`       | Created  | 3    |
-| `taplo.toml`                             | Created  | 3    |
-| `.github/workflows/ci.yml`               | Created  | 4, 7 |
-| `Makefile`                               | Created  | 4, 7 |
-| `.github/workflows/gitleaks.yml`         | Created  | 5    |
-| `.github/workflows/trufflehog.yml`       | Created  | 5    |
-| `.gitleaks.toml`                         | Created  | 5    |
-| `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`  | Created  | 6    |
-| `.github/SECURITY.md`                    | Created  | 6    |
-| `.github/PULL_REQUEST_TEMPLATE.md`       | Created  | 6    |
-| `tests/scrut/help.md`                    | Created  | 7    |
+| Path                                    | Action   | Step |
+| --------------------------------------- | -------- | ---- |
+| `README.md`                             | Replaced | 1    |
+| `AGENTS.md`, `CLAUDE.md`                | Created  | 1    |
+| `CHANGELOG.md`                          | Created  | 1    |
+| `.claude/settings.json`                 | Created  | 1    |
+| `.github/copilot-instructions.md`       | Created  | 1    |
+| `docs/plans/{todo,done}/.gitkeep`       | Created  | 1    |
+| `tools/sampler-nulltest/AGENTS.md`      | Renamed  | 1    |
+| `ruff.toml`                             | Created  | 2    |
+| `tools/sampler-nulltest/*.py`           | Modified | 2    |
+| `.editorconfig`, `.prettierrc.json`     | Created  | 3    |
+| `.markdownlint-cli2.jsonc`              | Created  | 3, 7 |
+| `cspell.jsonc`, `cspell-words.txt`      | Created  | 3    |
+| `.github/workflows/ci.yml`              | Created  | 4, 7 |
+| `Makefile`                              | Created  | 4, 7 |
+| `.github/workflows/gitleaks.yml`        | Created  | 5    |
+| `.github/workflows/trufflehog.yml`      | Created  | 5    |
+| `.gitleaks.toml`                        | Created  | 5    |
+| `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` | Created  | 6    |
+| `.github/SECURITY.md`                   | Created  | 6    |
+| `.github/PULL_REQUEST_TEMPLATE.md`      | Created  | 6    |
+| `tests/scrut/help.md`                   | Created  | 7    |
 
 ## Verification
 

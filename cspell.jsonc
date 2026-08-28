@@ -1,0 +1,17 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "dictionaryDefinitions": [
+    {
+      "name": "project-words",
+      "path": "./cspell-words.txt",
+      "addWords": true,
+    },
+  ],
+  "dictionaries": ["project-words"],
+  "ignorePaths": ["node_modules/", ".venv/", "venv/", "__pycache__/", ".git/", "*.lock", "tools/sampler-nulltest/probe/", "CHANGELOG.md"],
+  "ignoreRegExpList": [
+    // SHA pins on GitHub Actions `uses:` lines.
+    "/@[0-9a-f]{40}/g",
+  ],
+}
