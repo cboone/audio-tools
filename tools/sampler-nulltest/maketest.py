@@ -51,12 +51,20 @@ def fade(x, sr, ms=10.0):
 
 
 def white_noise(sr, seconds=2.0, peak_dbfs=-6.0, seed=1):
-    """Gaussian white noise scaled so its peak sits at peak_dbfs.
+    """Gaussian white noise scaled to peak at peak_dbfs, then faded at both ends.
 
     Scaling by observed peak rather than by standard deviation matters here:
     Gaussian samples have unbounded tails, so a sigma-based scaling would
     occasionally clip, and clipping is a nonlinearity that would contaminate
-    the very measurement we are making."""
+    the very measurement we are making.
+
+    The scaling happens before the fade, so the guarantee is "no louder than
+    peak_dbfs" rather than "exactly peak_dbfs": a peak landing inside either
+    10 ms ramp would come out slightly under. With the default seed it does
+    not, and the committed 48 kHz probe measures exactly -6.000 dBFS. Fading
+    first and scaling afterwards would make the peak exact, but it would also
+    change the generated samples, and the committed probes are the files real
+    bounces were made from."""
     x = np.random.default_rng(seed).standard_normal(int(sr * seconds))
     x *= 10.0 ** (peak_dbfs / 20.0) / np.max(np.abs(x))
     return fade(x, sr)

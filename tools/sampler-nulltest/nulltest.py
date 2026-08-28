@@ -95,7 +95,14 @@ def load(path):
         x = raw.astype(np.float64) / (np.iinfo(raw.dtype).max + 1.0)
     else:
         x = raw.astype(np.float64)
-    return x, sr, str(raw.dtype)
+    # Labelled as the decoded dtype rather than passed off as the container's
+    # subtype, because on this path it is not one. scipy widens 24-bit PCM into
+    # int32, so PCM_24 and PCM_32 both decode to int32: reporting that bare
+    # would assert a stored format this path never read, and would also hide a
+    # genuine difference between those two by giving them the same name.
+    # Normalization is unaffected, since scipy leaves 24-bit data shifted into
+    # the high bits and dividing by 2**31 recovers what 2**23 would.
+    return x, sr, f"scipy:{raw.dtype}"
 
 
 def db(x):
@@ -337,8 +344,10 @@ def main():
     p = argparse.ArgumentParser(
         description="Measure whether a bounce is a transparent pass-through "
                     "of its source.")
-    p.add_argument("a", help="source wav (what you fed the sampler)")
-    p.add_argument("b", help="bounced wav (what came back out)")
+    # Not "wav": with libsndfile behind it this reads AIFF and CAF too, and a
+    # DAW bounce is not always a WAV.
+    p.add_argument("a", help="source audio file (what you fed the sampler)")
+    p.add_argument("b", help="bounced audio file (what came back out)")
     p.add_argument("-o", "--out", default="nulltest.png")
     p.add_argument("--floor", type=float, default=-60.0,
                    help="dB below source peak spectrum to ignore (default -60)")
@@ -432,7 +441,7 @@ def main():
             aside.append(f"a {shape_a[1]}-to-{shape_b[1]} channel fold-down, "
                          "every source channel matching the bounce exactly")
         if suba != subb:
-            aside.append(f"a change of stored format from {suba} to {subb}")
+            aside.append(f"a change of sample format from {suba} to {subb}")
         if aside:
             print("         Every sample that lines up matches. What differs "
                   "is " + "; ".join(aside) + ".")
@@ -493,7 +502,7 @@ def main():
         print(f"  residual is exactly zero on {', '.join(exact)}, so whatever "
               "happened did not happen there.")
     if suba != subb:
-        print(f"  stored formats differ ({suba} source, {subb} bounce), which "
+        print(f"  sample formats differ ({suba} source, {subb} bounce), which "
               "is not by itself a change to the signal.")
     if xa.shape[1] != xb.shape[1]:
         if xa.shape[1] == 1 or xb.shape[1] == 1:
