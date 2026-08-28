@@ -67,5 +67,6 @@ suba
 subb
 
 # Misc
+cooldown
 lockfiles
 Taplo
