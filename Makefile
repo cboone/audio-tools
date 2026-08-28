@@ -10,7 +10,13 @@ NULLTEST_BIN := $(CURDIR)/tools/sampler-nulltest/nulltest.py
 MAKETEST_BIN := $(CURDIR)/tools/sampler-nulltest/maketest.py
 SCRUT_TESTS := tests/scrut/
 
-.PHONY: lint fmt fmt-fix text-lint test-scrut test-scrut-update test-all help
+.PHONY: node-tools lint fmt fmt-fix text-lint text-fix test-scrut test-scrut-update test-all help
+
+node-tools: node_modules ## Install the pinned text linters
+
+node_modules: package-lock.json
+	npm ci --ignore-scripts --include=dev --no-audit --no-fund
+	@touch node_modules
 
 lint: ## Run ruff lint
 	uvx ruff@$(RUFF_VERSION) check .
@@ -22,10 +28,16 @@ fmt-fix: ## Apply ruff formatting and safe lint fixes
 	uvx ruff@$(RUFF_VERSION) format .
 	uvx ruff@$(RUFF_VERSION) check --fix .
 
-text-lint: ## Run markdownlint, Prettier and cspell
-	markdownlint-cli2 "**/*.md"
-	prettier --check .
-	cspell lint --no-progress .
+# The text linters run from node_modules rather than whatever is on PATH, so
+# these match CI byte for byte. CI installs the same package-lock.json.
+text-lint: node-tools ## Run markdownlint, Prettier and cspell
+	npm run --silent lint:md
+	npm run --silent format:check
+	npm run --silent spell
+
+text-fix: node-tools ## Apply Prettier formatting and markdownlint fixes
+	npm run --silent format:write
+	npm run --silent lint:md:fix
 
 test-scrut: ## Run scrut CLI tests
 	@if ! command -v scrut >/dev/null 2>&1; then \

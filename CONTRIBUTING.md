@@ -13,11 +13,13 @@ Please note that this project has a [Code of Conduct](CODE_OF_CONDUCT.md). By pa
 
 ### Requirements
 
-- [`uv`](https://docs.astral.sh/uv/) (the only hard requirement)
+- [`uv`](https://docs.astral.sh/uv/) (the only hard requirement to _run_ the tools)
 - [`scrut`](https://github.com/facebookincubator/scrut) to run the CLI tests
-- `markdownlint-cli2`, `prettier` and `cspell` to run the text checks locally
+- Node and `npm` to run the text checks, which come from this repo's `package-lock.json`
 
-There is no dependency install step. Every tool is a standalone script carrying [PEP 723](https://peps.python.org/pep-0723/) inline metadata, so `uv` resolves each script's dependencies on first run.
+There is no Python dependency install step. Every tool is a standalone script carrying [PEP 723](https://peps.python.org/pep-0723/) inline metadata, so `uv` resolves each script's dependencies on first run.
+
+The `package.json` at the root does not make this a JavaScript project. It exists only to pin `markdownlint-cli2`, `prettier` and `cspell`, so that `make text-lint` and CI run byte-identical versions. `make node-tools` installs them, and the other targets depend on it.
 
 ### Getting Started
 
@@ -32,7 +34,7 @@ uv run tools/sampler-nulltest/nulltest.py source.wav bounced.wav
 # Run the CLI tests
 make test-scrut
 
-# Run the linters
+# Run the linters. text-lint installs the pinned Node tools on first use.
 make lint
 make text-lint
 ```

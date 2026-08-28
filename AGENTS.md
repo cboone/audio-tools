@@ -40,10 +40,13 @@ System `python3` will not have the dependencies. `python3 nulltest.py` fails; `u
 ```bash
 make lint               # ruff check .
 make fmt                # ruff format --check .
+make text-lint          # markdownlint, Prettier and cspell
 make test-scrut         # run scrut CLI snapshot tests
 make test-scrut-update  # regenerate scrut snapshots after intentional changes
 make test-all           # everything
 ```
+
+The root `package.json` does not make this a JavaScript project. It pins `markdownlint-cli2`, `prettier` and `cspell` so `make text-lint` and CI run identical versions, and because `lint-text.yml` cannot fetch its own pinned lockfile here (see cboone/gh-actions#83). Do not add runtime JavaScript dependencies to it.
 
 Ruff configuration lives in `ruff.toml`. Two rule choices are intentional and should not be "cleaned up":
 

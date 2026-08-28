@@ -33,6 +33,7 @@ System `python3` will not work: the dependencies are resolved per-script by `uv`
 ```bash
 make lint        # ruff check
 make fmt         # ruff format --check
+make text-lint   # markdownlint, Prettier and cspell
 make test-scrut  # scrut CLI snapshot tests
 make help        # list all targets
 ```

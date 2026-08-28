@@ -29,3 +29,14 @@ jobs:
       run-markdownlint: true
       run-prettier: true
       run-cspell: true
+      # Install the linters from this repo's own package-lock.json rather than
+      # the one inside gh-actions.
+      #
+      # Required, not preferred: with the default (false), lint-text.yml fetches
+      # its pinned lockfile from raw.githubusercontent.com using
+      # github.job_workflow_sha, and that context value arrives empty here, so
+      # the install step fails before any linter runs. See cboone/gh-actions#83.
+      #
+      # It is also the better arrangement independently: `make text-lint` and CI
+      # now run byte-identical tool versions, where before they could drift.
+      use-consumer-versions: true
