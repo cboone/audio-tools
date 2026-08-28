@@ -189,7 +189,7 @@ def render(outdir, sr, name, data, want, floor, silent=None):
                  "asked for")
     if got < floor - TOLERANCE:
         sys.exit(f"{name}.wav peaks at {got:.6f}, below the {floor:.6f} this "
-                 f"waveform can reach at {sr} Hz")
+                 f"waveform can reach when sampled at {sr} Hz")
 
     # A panned file's whole point is the channel that holds nothing, so that is
     # the half worth asserting. Reporting the loudest channel alone once let a
