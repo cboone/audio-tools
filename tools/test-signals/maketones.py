@@ -50,6 +50,7 @@ is no flag to switch that off.
 """
 
 import argparse
+import math
 import os
 import sys
 
@@ -72,8 +73,13 @@ REPORT_UNDER = 0.0001
 
 
 def timeline(sr, seconds):
-    """Sample times in seconds, which every waveform below is a function of."""
-    return np.arange(int(sr * seconds)) / float(sr)
+    """Sample times in seconds, which every waveform below is a function of.
+
+    Rounded rather than truncated. `sr * seconds` is a binary float and lands
+    just under the whole number for some ordinary inputs: 44100 * 0.7 is
+    30869.999999999996, which truncates to a file one sample short of the
+    length that was asked for."""
+    return np.arange(round(sr * seconds)) / float(sr)
 
 
 def sine(t, hz, level):
@@ -320,20 +326,54 @@ def main():
     p.add_argument("--burst-level", type=float, default=0.5)
     args = p.parse_args()
 
+    # Every float the caller can set is checked here, at the boundary, rather
+    # than where it is eventually used. NaN defeats an ordinary range check,
+    # because every comparison against it is false: `--seconds nan` sails past
+    # `seconds <= 0.0` and arrives much later as a traceback out of
+    # `int(sr * nan)`. The rates are worse, since `--click-rate 0` reaches a
+    # division by zero inside gate() and a negative rate leaves the gate open
+    # for the whole file without complaining at all.
+    for flag, value in (("--seconds", args.seconds),
+                        ("--level-hz", args.level_hz),
+                        ("--click-hz", args.click_hz),
+                        ("--click-ms", args.click_ms),
+                        ("--click-rate", args.click_rate),
+                        ("--burst-ms", args.burst_ms),
+                        ("--burst-rate", args.burst_rate)):
+        if not math.isfinite(value) or value <= 0.0:
+            sys.exit(f"{flag}: {value:g} is not a finite number above zero")
+
+    for hz in args.sines:
+        if not math.isfinite(hz) or hz <= 0.0:
+            sys.exit(f"--sines: {hz:g} is not a finite number above zero")
+
+    # Zero is allowed for a level, unlike everything above: a file of digital
+    # silence is a legitimate thing to ask a display for, and the checks in
+    # render() already read correctly when the requested peak is zero.
+    for flag, value in (("--sine-level", args.sine_level),
+                        ("--pan-level", args.pan_level),
+                        ("--click-level", args.click_level),
+                        ("--burst-level", args.burst_level)):
+        if not math.isfinite(value) or value < 0.0:
+            sys.exit(f"{flag}: {value:g} is not a finite number at or above zero")
+
     for flag, tokens in (("--levels", args.levels), ("--saws", args.saws)):
         for token in tokens:
             try:
-                float(token)
+                value = float(token)
             except ValueError:
                 sys.exit(f"{flag}: {token} is not a number")
+            if not math.isfinite(value) or value < 0.0:
+                sys.exit(f"{flag}: {token} is not a finite number at or above "
+                         "zero")
 
-    if args.sr <= 0 or args.seconds <= 0.0:
-        sys.exit("--sr and --seconds must both be above zero")
+    if args.sr <= 0:
+        sys.exit(f"--sr: {args.sr} is not above zero")
 
     # Above Nyquist a sine aliases down to some other frequency and the file is
     # silently not the signal it is named after, which is worse than an error.
     for hz in list(args.sines) + [args.level_hz, args.click_hz]:
-        if hz <= 0.0 or hz >= args.sr / 2.0:
+        if hz >= args.sr / 2.0:
             sys.exit(f"{hz:g} Hz is not below the {args.sr / 2.0:g} Hz Nyquist "
                      f"limit for --sr {args.sr}")
 
