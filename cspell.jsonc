@@ -9,7 +9,23 @@
     },
   ],
   "dictionaries": ["project-words"],
-  "ignorePaths": ["node_modules/", ".venv/", "venv/", "__pycache__/", ".git/", "*.lock", "tools/sampler-nulltest/probe/", "CHANGELOG.md"],
+  "ignorePaths": [
+    "node_modules/",
+    ".venv/",
+    "venv/",
+    "__pycache__/",
+    // Both forms on purpose. In a normal checkout .git is a directory; in a
+    // git worktree it is a file, which "/"-suffixed patterns do not match.
+    ".git",
+    ".git/",
+    "*.lock",
+    // Vendored upstream template (github/gitignore Python.gitignore). Its tool
+    // names are not this project's vocabulary and do not belong in the
+    // dictionary.
+    ".gitignore",
+    "tools/sampler-nulltest/probe/",
+    "CHANGELOG.md",
+  ],
   "ignoreRegExpList": [
     // SHA pins on GitHub Actions `uses:` lines.
     "/@[0-9a-f]{40}/g",

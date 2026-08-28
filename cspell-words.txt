@@ -76,3 +76,4 @@ zhang
 cooldown
 lockfiles
 Taplo
+worktree
