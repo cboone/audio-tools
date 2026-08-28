@@ -12,7 +12,7 @@ Written for verifying an audio plugin's display by playing files through REAPER,
 | -------------- | ---------------------------------------------------------- |
 | `maketones.py` | The generator. Renders each group and verifies every file. |
 | `README.md`    | This file.                                                 |
-| `CLAUDE.md`    | Notes for agents.                                          |
+| `AGENTS.md`    | Notes for agents. `CLAUDE.md` symlinks here.               |
 
 Output is not committed. A default run is 18 files of roughly 7.7 MB each, they are regenerated in seconds, and nothing compares against a stored copy.
 
@@ -40,7 +40,7 @@ Five groups are rendered by default and any subset can be chosen with `--only`:
 | `levels`     | `level-0.002` through `level-2.000`, six files       | One frequency at many amplitudes, so only the vertical axis varies.                                      |
 | `pans`       | `pan-hard-left`, `pan-hard-right`                    | Proving a channel is read, rather than assumed.                                                          |
 | `saws`       | `saw-0.900`, `saw-1.100`                             | Showing an overshoot as a flat top with a vertical edge.                                                 |
-| `transients` | `click-2hz`, `burst-100hz-gated`                     | Anything whose behaviour only differs after the signal changes.                                          |
+| `transients` | `click-2hz`, `burst-100hz-gated`                     | Anything whose behavior only differs after the signal changes.                                           |
 
 The full flag list is in `--help`. The ones that matter most are `--sines`, `--levels`, `--saws` and `--level-hz` for content, and `--sr`, `--seconds` and `--outdir` for everything else.
 
@@ -52,7 +52,7 @@ Four things are decisions rather than defaults, and they are the part worth carr
 
 **Do not reach for a DAW's gain knob instead.** REAPER's stock Tone Generator and `JS: Volume Adjustment` both compute gain as `2 ^ (x / 6)`, which is a factor of two per six decibels rather than 6.0206 dB. The Tone Generator additionally moves in whole decibels and stops at +6. `JS: Volume/Pan Smoother` is the only one of the three using true dB. Rendering the levels makes them exact and, more usefully, makes them checkable. The Tone Generator is still the better source when an integer Hz field that nudges by one matters more than an exact level.
 
-**The pan is baked into the file rather than left to a knob.** REAPER applies track pan *after* the FX chain, so panning a track never reaches the plugin under test. A channel check done with the pan knob passes against a plugin that ignores the channel entirely, which is the exact bug the check exists to find.
+**The pan is baked into the file rather than left to a knob.** REAPER applies track pan _after_ the FX chain, so panning a track never reaches the plugin under test. A channel check done with the pan knob passes against a plugin that ignores the channel entirely, which is the exact bug the check exists to find.
 
 **Every file is read back after it is written.** A generator that silently clipped its own output would produce a level sweep that tested nothing, which is the same class of failure as an install that was never confirmed. There is no flag to switch it off.
 
@@ -109,4 +109,4 @@ Four injected faults each fail with exit 1: writing `int16`, clamping to unity, 
 - **Peak amplitude is the only thing verified.** Nothing checks the frequency of what was written, so a synthesis bug that produced the right peak at the wrong frequency would pass. Counting periods on a display is currently the only thing that catches that.
 - **The lower bound is loose at high frequencies.** `cos(pi * f / sr)` is the worst case over phase, and a real file usually lands much closer to the crest than that: at 16 kHz against 48 kHz the bound allows 50% while the actual peak is 13.40% low. The bound never rejects a correct file, which is what it is for; it is not a tight estimate.
 - **Nothing fades.** These signals hold an exact peak for their whole length on purpose, so they start and stop abruptly. That is correct for a level check and wrong for anything measuring a transfer function, where the discontinuity is itself broadband content. `tools/sampler-nulltest/maketest.py` is the tool for that case, and it fades for exactly this reason.
-- **There is no test suite.** See `CLAUDE.md` for how to validate a change.
+- **There is no test suite.** See `AGENTS.md` for how to validate a change.

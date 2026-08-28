@@ -24,7 +24,7 @@ selected with --only:
                point, so an overshoot shows as a flat top with a vertical edge;
                a clipped sine's plateau can be mistaken for a rounded peak.
   transients   A repeating click and a gated burst, for anything whose
-               behaviour only differs after the signal changes.
+               behavior only differs after the signal changes.
 
 Four things about the output are decisions rather than defaults.
 
@@ -194,21 +194,26 @@ def render(outdir, sr, name, data, want, floor, silent=None):
 
     back_sr, back = wavfile.read(path)
     if back_sr != sr or back.dtype != np.float32 or back.shape != samples.shape:
-        sys.exit(f"{name}.wav came back as {back.shape} {back.dtype} at "
-                 f"{back_sr} Hz, not {samples.shape} float32 at {sr} Hz")
+        sys.exit(
+            f"{name}.wav came back as {back.shape} {back.dtype} at "
+            f"{back_sr} Hz, not {samples.shape} float32 at {sr} Hz"
+        )
 
     held = peaks(back)
     if not np.array_equal(held, peaks(samples)):
-        sys.exit(f"{name}.wav peaks at {held} on disk and {peaks(samples)} in "
-                 "memory; the write did not keep what it was given")
+        sys.exit(
+            f"{name}.wav peaks at {held} on disk and {peaks(samples)} in "
+            "memory; the write did not keep what it was given"
+        )
 
     got = float(np.max(held))
     if got > want + TOLERANCE:
-        sys.exit(f"{name}.wav peaks at {got:.6f}, louder than the {want:.6f} "
-                 "asked for")
+        sys.exit(f"{name}.wav peaks at {got:.6f}, louder than the {want:.6f} asked for")
     if got < floor - TOLERANCE:
-        sys.exit(f"{name}.wav peaks at {got:.6f}, below the {floor:.6f} this "
-                 f"waveform can reach when sampled at {sr} Hz")
+        sys.exit(
+            f"{name}.wav peaks at {got:.6f}, below the {floor:.6f} this "
+            f"waveform can reach when sampled at {sr} Hz"
+        )
 
     # A panned file's whole point is the channel that holds nothing, so that is
     # the half worth asserting. Reporting the loudest channel alone once let a
@@ -218,8 +223,10 @@ def render(outdir, sr, name, data, want, floor, silent=None):
     if silent is not None:
         side = 0 if silent == "left" else 1
         if held[side] != 0.0:
-            sys.exit(f"{name}.wav has {held[side]:.6f} in its {silent} "
-                     "channel, expected silence")
+            sys.exit(
+                f"{name}.wav has {held[side]:.6f} in its {silent} "
+                "channel, expected silence"
+            )
 
     # Reported only once it is large enough for the printed figure to say
     # something. A frequency whose crest falls between samples is short by a
@@ -229,8 +236,10 @@ def render(outdir, sr, name, data, want, floor, silent=None):
     under = ""
     if want > 0.0 and (want - got) / want >= REPORT_UNDER:
         under = f", {100.0 * (want - got) / want:.2f}% under {want:g}"
-    print(f"wrote {path}  ({len(samples)/sr:.2f} s @ {sr} Hz, 32-bit float)  "
-          f"peak {got:.6f}{note}{under}")
+    print(
+        f"wrote {path}  ({len(samples) / sr:.2f} s @ {sr} Hz, 32-bit float)  "
+        f"peak {got:.6f}{note}{under}"
+    )
 
 
 # --------------------------------------------------------------- the groups
@@ -241,9 +250,13 @@ def make_sines(args):
     t = timeline(args.sr, args.seconds)
     for hz in args.sines:
         tone = sine(t, hz, args.sine_level)
-        yield (f"sine-{hz:g}hz-{args.sine_level:g}", stereo(tone, tone),
-               args.sine_level, sine_floor(t, args.sr, hz, args.sine_level),
-               None)
+        yield (
+            f"sine-{hz:g}hz-{args.sine_level:g}",
+            stereo(tone, tone),
+            args.sine_level,
+            sine_floor(t, args.sr, hz, args.sine_level),
+            None,
+        )
 
 
 def make_levels(args):
@@ -257,8 +270,13 @@ def make_levels(args):
     for token in args.levels:
         level = float(token)
         tone = sine(t, args.level_hz, level)
-        yield (f"level-{token}", stereo(tone, tone), level,
-               sine_floor(t, args.sr, args.level_hz, level), None)
+        yield (
+            f"level-{token}",
+            stereo(tone, tone),
+            level,
+            sine_floor(t, args.sr, args.level_hz, level),
+            None,
+        )
 
 
 def make_pans(args):
@@ -277,8 +295,13 @@ def make_saws(args):
     for token in args.saws:
         level = float(token)
         ramp = saw(t, args.level_hz, level)
-        yield (f"saw-{token}", stereo(ramp, ramp), level,
-               saw_floor(args.sr, args.level_hz, level), None)
+        yield (
+            f"saw-{token}",
+            stereo(ramp, ramp),
+            level,
+            saw_floor(args.sr, args.level_hz, level),
+            None,
+        )
 
 
 def make_transients(args):
@@ -291,20 +314,26 @@ def make_transients(args):
     gives a rise and a decay in one file, which is the shape to watch when
     judging whether a fade looks like a phosphor or like a fade."""
     t = timeline(args.sr, args.seconds)
-    click = gate(t, args.click_rate, args.click_ms) * \
-        sine(t, args.click_hz, args.click_level)
-    burst = gate(t, args.burst_rate, args.burst_ms) * \
-        sine(t, args.level_hz, args.burst_level)
-    yield (f"click-{args.click_rate:g}hz", stereo(click, click),
-           args.click_level,
-           gated_floor(t, args.sr, args.click_hz, args.click_ms,
-                       args.click_level),
-           None)
-    yield (f"burst-{args.level_hz:g}hz-gated", stereo(burst, burst),
-           args.burst_level,
-           gated_floor(t, args.sr, args.level_hz, args.burst_ms,
-                       args.burst_level),
-           None)
+    click = gate(t, args.click_rate, args.click_ms) * sine(
+        t, args.click_hz, args.click_level
+    )
+    burst = gate(t, args.burst_rate, args.burst_ms) * sine(
+        t, args.level_hz, args.burst_level
+    )
+    yield (
+        f"click-{args.click_rate:g}hz",
+        stereo(click, click),
+        args.click_level,
+        gated_floor(t, args.sr, args.click_hz, args.click_ms, args.click_level),
+        None,
+    )
+    yield (
+        f"burst-{args.level_hz:g}hz-gated",
+        stereo(burst, burst),
+        args.burst_level,
+        gated_floor(t, args.sr, args.level_hz, args.burst_ms, args.burst_level),
+        None,
+    )
 
 
 # ----------------------------------------------------------------------- main
@@ -312,39 +341,57 @@ def make_transients(args):
 
 def main():
     p = argparse.ArgumentParser(
-        description="render exact test signals and verify every file written")
+        description="render exact test signals and verify every file written"
+    )
     p.add_argument("--outdir", default=".")
     p.add_argument("--sr", type=int, default=48000, help="sample rate")
-    p.add_argument("--seconds", type=float, default=20.0,
-                   help="length of every file")
-    p.add_argument("--only", nargs="+", choices=GROUPS, default=list(GROUPS),
-                   metavar="GROUP", help=f"groups to render ({', '.join(GROUPS)})")
+    p.add_argument("--seconds", type=float, default=20.0, help="length of every file")
+    p.add_argument(
+        "--only",
+        nargs="+",
+        choices=GROUPS,
+        default=list(GROUPS),
+        metavar="GROUP",
+        help=f"groups to render ({', '.join(GROUPS)})",
+    )
 
-    p.add_argument("--sines", nargs="+", type=float,
-                   default=[50.0, 100.0, 200.0, 250.0, 400.0, 1000.0],
-                   help="frequencies for the sine group")
+    p.add_argument(
+        "--sines",
+        nargs="+",
+        type=float,
+        default=[50.0, 100.0, 200.0, 250.0, 400.0, 1000.0],
+        help="frequencies for the sine group",
+    )
     p.add_argument("--sine-level", type=float, default=0.5)
 
-    p.add_argument("--levels", nargs="+",
-                   default=["0.002", "0.010", "0.100", "0.500", "1.000",
-                            "2.000"],
-                   help="amplitudes for the level sweep; the text is the name")
-    p.add_argument("--level-hz", type=float, default=100.0,
-                   help="frequency for the levels, pans, saws and burst")
+    p.add_argument(
+        "--levels",
+        nargs="+",
+        default=["0.002", "0.010", "0.100", "0.500", "1.000", "2.000"],
+        help="amplitudes for the level sweep; the text is the name",
+    )
+    p.add_argument(
+        "--level-hz",
+        type=float,
+        default=100.0,
+        help="frequency for the levels, pans, saws and burst",
+    )
 
-    p.add_argument("--saws", nargs="+", default=["0.900", "1.100"],
-                   help="amplitudes for the saw group; the text is the name")
+    p.add_argument(
+        "--saws",
+        nargs="+",
+        default=["0.900", "1.100"],
+        help="amplitudes for the saw group; the text is the name",
+    )
     p.add_argument("--pan-level", type=float, default=0.5)
 
     p.add_argument("--click-hz", type=float, default=1000.0)
     p.add_argument("--click-ms", type=float, default=1.0)
-    p.add_argument("--click-rate", type=float, default=2.0,
-                   help="clicks per second")
+    p.add_argument("--click-rate", type=float, default=2.0, help="clicks per second")
     p.add_argument("--click-level", type=float, default=0.8)
 
     p.add_argument("--burst-ms", type=float, default=100.0)
-    p.add_argument("--burst-rate", type=float, default=1.0,
-                   help="bursts per second")
+    p.add_argument("--burst-rate", type=float, default=1.0, help="bursts per second")
     p.add_argument("--burst-level", type=float, default=0.5)
     args = p.parse_args()
 
@@ -355,13 +402,15 @@ def main():
     # `int(sr * nan)`. The rates are worse, since `--click-rate 0` reaches a
     # division by zero inside gate() and a negative rate leaves the gate open
     # for the whole file without complaining at all.
-    for flag, value in (("--seconds", args.seconds),
-                        ("--level-hz", args.level_hz),
-                        ("--click-hz", args.click_hz),
-                        ("--click-ms", args.click_ms),
-                        ("--click-rate", args.click_rate),
-                        ("--burst-ms", args.burst_ms),
-                        ("--burst-rate", args.burst_rate)):
+    for flag, value in (
+        ("--seconds", args.seconds),
+        ("--level-hz", args.level_hz),
+        ("--click-hz", args.click_hz),
+        ("--click-ms", args.click_ms),
+        ("--click-rate", args.click_rate),
+        ("--burst-ms", args.burst_ms),
+        ("--burst-rate", args.burst_rate),
+    ):
         if not math.isfinite(value) or value <= 0.0:
             sys.exit(f"{flag}: {value:g} is not a finite number above zero")
 
@@ -372,10 +421,12 @@ def main():
     # Zero is allowed for a level, unlike everything above: a file of digital
     # silence is a legitimate thing to ask a display for, and the checks in
     # render() already read correctly when the requested peak is zero.
-    for flag, value in (("--sine-level", args.sine_level),
-                        ("--pan-level", args.pan_level),
-                        ("--click-level", args.click_level),
-                        ("--burst-level", args.burst_level)):
+    for flag, value in (
+        ("--sine-level", args.sine_level),
+        ("--pan-level", args.pan_level),
+        ("--click-level", args.click_level),
+        ("--burst-level", args.burst_level),
+    ):
         if not math.isfinite(value) or value < 0.0:
             sys.exit(f"{flag}: {value:g} is not a finite number at or above zero")
 
@@ -385,12 +436,15 @@ def main():
     # dimension: a file quietly not being the signal it is called. Checked
     # after the loop above, which is what guarantees the rate is above zero.
     for ms_flag, ms, rate_flag, rate in (
-            ("--click-ms", args.click_ms, "--click-rate", args.click_rate),
-            ("--burst-ms", args.burst_ms, "--burst-rate", args.burst_rate)):
+        ("--click-ms", args.click_ms, "--click-rate", args.click_rate),
+        ("--burst-ms", args.burst_ms, "--burst-rate", args.burst_rate),
+    ):
         period = 1000.0 / rate
         if ms >= period:
-            sys.exit(f"{ms_flag}: {ms:g} ms fills the {period:g} ms period of "
-                     f"{rate_flag} {rate:g}, so the gate would never close")
+            sys.exit(
+                f"{ms_flag}: {ms:g} ms fills the {period:g} ms period of "
+                f"{rate_flag} {rate:g}, so the gate would never close"
+            )
 
     for flag, tokens in (("--levels", args.levels), ("--saws", args.saws)):
         for token in tokens:
@@ -399,8 +453,7 @@ def main():
             except ValueError:
                 sys.exit(f"{flag}: {token} is not a number")
             if not math.isfinite(value) or value < 0.0:
-                sys.exit(f"{flag}: {token} is not a finite number at or above "
-                         "zero")
+                sys.exit(f"{flag}: {token} is not a finite number at or above zero")
 
     if args.sr <= 0:
         sys.exit(f"--sr: {args.sr} is not above zero")
@@ -411,18 +464,27 @@ def main():
     # maximum", a traceback rather than an answer. One sample is a strange
     # file to ask for but a coherent one, so the floor is one.
     if round(args.sr * args.seconds) < 1:
-        sys.exit(f"--seconds: {args.seconds:g} s at --sr {args.sr} rounds to "
-                 "zero samples, so there would be no file to write")
+        sys.exit(
+            f"--seconds: {args.seconds:g} s at --sr {args.sr} rounds to "
+            "zero samples, so there would be no file to write"
+        )
 
     # Above Nyquist a sine aliases down to some other frequency and the file is
     # silently not the signal it is named after, which is worse than an error.
-    for hz in list(args.sines) + [args.level_hz, args.click_hz]:
+    for hz in [*args.sines, args.level_hz, args.click_hz]:
         if hz >= args.sr / 2.0:
-            sys.exit(f"{hz:g} Hz is not below the {args.sr / 2.0:g} Hz Nyquist "
-                     f"limit for --sr {args.sr}")
+            sys.exit(
+                f"{hz:g} Hz is not below the {args.sr / 2.0:g} Hz Nyquist "
+                f"limit for --sr {args.sr}"
+            )
 
-    builders = {"sines": make_sines, "levels": make_levels, "pans": make_pans,
-                "saws": make_saws, "transients": make_transients}
+    builders = {
+        "sines": make_sines,
+        "levels": make_levels,
+        "pans": make_pans,
+        "saws": make_saws,
+        "transients": make_transients,
+    }
 
     os.makedirs(args.outdir, exist_ok=True)
     # Iterating GROUPS rather than args.only keeps the output in a fixed order

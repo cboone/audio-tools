@@ -4,16 +4,16 @@ Addresses [cboone/audio-tools#1](https://github.com/cboone/audio-tools/issues/1)
 
 ## Context
 
-`cboone/fosforo` carries `scripts/make-test-tones`, 241 lines of bash driving `ffmpeg -f lavfi -i aevalsrc=...` to render the signals that plugin's manual host verification plays: sines at exact frequencies, a level sweep crossing full scale, two hard-panned files, two sawtooths either side of a clipping threshold, and two transients. It writes 32-bit float stereo WAVs and reads every peak back out of the finished file.
+`cboone/fosforo` carries `scripts/make-test-tones`, 241 lines of bash driving `ffmpeg -f lavfi -i aevalsrc=...` to render the signals that plugin's manual host verification plays: sines at exact frequencies, a level sweep crossing full scale, two hard-panned files, two sawtooth ramps either side of a clipping threshold, and two transients. It writes 32-bit float stereo WAVs and reads every peak back out of the finished file.
 
-Almost none of that is specific to one plugin. The design reasons generalise completely, and they are the part worth keeping:
+Almost none of that is specific to one plugin. The design reasons generalize completely, and they are the part worth keeping:
 
 - **32-bit float, not 24-bit integer.** Any test signal above 1.0 is unrepresentable otherwise, and testing what a meter or a scope does above full scale is a normal thing to want.
 - **Do not use a DAW's gain knob.** REAPER's stock Tone Generator and `JS: Volume Adjustment` both compute gain as `2 ^ (x / 6)`, a factor of two per six decibels rather than 6.0206 dB, and the Tone Generator moves in whole-decibel steps capped at +6.
-- **Pan has to be baked into the file.** REAPER applies track pan *after* the FX chain, so panning a track never reaches the plugin under test, and a channel check done with the pan knob passes against a plugin that ignores the channel entirely.
+- **Pan has to be baked into the file.** REAPER applies track pan _after_ the FX chain, so panning a track never reaches the plugin under test, and a channel check done with the pan knob passes against a plugin that ignores the channel entirely.
 - **Verify the generator.** Reading each peak back caught a bug in the script's own check: taking the first channel's peak reports zero for a hard-panned file.
 
-The intended outcome is a parameterised generator in this repo that any instrument can point at with its own thresholds, with the readback verification unconditional, and `cboone/fosforo` reduced to a caller.
+The intended outcome is a parameterized generator in this repo that any instrument can point at with its own thresholds, with the readback verification unconditional, and `cboone/fosforo` reduced to a caller.
 
 ## Decisions taken before planning
 
@@ -21,7 +21,7 @@ Four questions were settled with the user:
 
 1. **Port to Python** rather than importing the bash. This repo is entirely `uv` / PEP 723 / numpy / scipy, with no shell scripts, no ffmpeg, no CI and no linter config. `tools/sampler-nulltest/maketest.py` is already a signal generator and is the precedent to match. Porting also removes the ffmpeg dependency, makes the `mod()` comma-escaping hazard moot, and makes the peak readback exact instead of parsed out of `astats` text.
 2. **CLI flags**, no preset file and no `--periods-per-window` concept. Fósforo's exact invocation goes in the README as the worked example.
-3. **The screenshot analyser is out of scope.** Issue #1 floats bringing `measure-trace` here too. [cboone/fosforo#64](https://github.com/cboone/fosforo/issues/64), opened three days later, found it, committed an improved version on fosforo's `chore/scripts` branch, and settled that it stays there. That is right: it restates `trace_full_scale`, `trace_rail`, and the background and beam colour literals that it does not own, it cannot measure any other oscilloscope, and its only real safeguard is a Zig test reading the Python source, which can only exist in fosforo. Post a comment on #1 recording that #64 supersedes that paragraph.
+3. **The screenshot analyzer is out of scope.** Issue #1 floats bringing `measure-trace` here too. [cboone/fosforo#64](https://github.com/cboone/fosforo/issues/64), opened three days later, found it, committed an improved version on fosforo's `chore/scripts` branch, and settled that it stays there. That is right: it restates `trace_full_scale`, `trace_rail`, and the background and beam color literals that it does not own, it cannot measure any other oscilloscope, and its only real safeguard is a Zig test reading the Python source, which can only exist in fosforo. Post a comment on #1 recording that #64 supersedes that paragraph.
 4. **The fosforo-side cleanup is a follow-up issue**, not part of this branch.
 
 ## Scope
@@ -32,14 +32,14 @@ Create `tools/test-signals/`, matching the `tools/<tool-name>/` layout establish
 | --------------------------------- | --------------------------------------------------------------------- |
 | `tools/test-signals/maketones.py` | The generator, mode `100755`                                          |
 | `tools/test-signals/README.md`    | Problem statement, usage, the design rationale above, worked examples |
-| `tools/test-signals/CLAUDE.md`    | Agent guidance, deferring to the README                               |
+| `tools/test-signals/AGENTS.md`    | Agent guidance, deferring to the README                               |
 | `.gitignore`                      | One `tools/test-signals/*.wav` entry under a `# Tool output` comment  |
 
 No committed output. The fosforo set is 20 files at roughly 7.7 MB each; unlike `sampler-nulltest/probe/*.wav` these are not fixtures anything compares against, so they are generated and ignored.
 
 ## `maketones.py`
 
-House style is set by `maketest.py` and `nulltest.py` and must be matched exactly: `#!/usr/bin/env -S uv run --script` with a PEP 723 block declaring `requires-python = ">=3.10"` and alphabetised `dependencies = ["numpy", "scipy"]`; a module docstring opening `maketones.py: <lowercase purpose>` then `Usage:  uv run maketones.py ...`; no type hints, no classes, no dataclasses; `os.path` rather than `pathlib`; double quotes; explicit `.0` on floats; dense comments explaining *why*, including the bugs a decision was written against; plain `print()` to stdout with no colour; `sys.exit("lowercase message")` for user errors; `def main():` with a local `p = argparse.ArgumentParser()`; `if __name__ == "__main__": main()`.
+House style is set by `maketest.py` and `nulltest.py` and must be matched exactly: `#!/usr/bin/env -S uv run --script` with a PEP 723 block declaring `requires-python = ">=3.10"` and alphabetized `dependencies = ["numpy", "scipy"]`; a module docstring opening `maketones.py: <lowercase purpose>` then `Usage:  uv run maketones.py ...`; no type hints, no classes, no dataclasses; `os.path` rather than `pathlib`; double quotes; explicit `.0` on floats; dense comments explaining _why_, including the bugs a decision was written against; plain `print()` to stdout with no color; `sys.exit("lowercase message")` for user errors; `def main():` with a local `p = argparse.ArgumentParser()`; `if __name__ == "__main__": main()`.
 
 ### Argument surface
 
@@ -77,7 +77,7 @@ Waveforms needed: sine; saw as `level * (2.0 * ((hz * t) % 1.0) - 1.0)`; a gated
 
 ### Verification, which is the load-bearing part
 
-The bash version compared one number to the requested level with a `0.0005` tolerance. That worked only because every fosforo frequency happens to land a sample on the crest at 48 kHz. **A parameterised generator accepting arbitrary frequencies cannot keep that check**: the largest sample of a sine need not land on the crest, and the peak can then sit as low as `cos(pi * f / sr)`, which is 0.2% at 1 kHz against 48 kHz and far outside 0.0005. A fixed tolerance would fail correct files.
+The bash version compared one number to the requested level with a `0.0005` tolerance. That worked only because every fosforo frequency happens to land a sample on the crest at 48 kHz. **A parameterized generator accepting arbitrary frequencies cannot keep that check**: the largest sample of a sine need not land on the crest, and the peak can then sit as low as `cos(pi * f / sr)`, which is 0.2% at 1 kHz against 48 kHz and far outside 0.0005. A fixed tolerance would fail correct files.
 
 Split it into the two failure modes it was conflating:
 
@@ -97,7 +97,7 @@ wrote ./pan-hard-right.wav  (20.00 s @ 48000 Hz, 32-bit float)  peak 0.500000, l
 
 ## Verification
 
-Nothing in this repo has a test suite, and `tools/sampler-nulltest/CLAUDE.md` says so outright; validation is manual and must be recorded. Run all of it before committing.
+Nothing in this repo has a test suite, and `tools/sampler-nulltest/AGENTS.md` says so outright; validation is manual and must be recorded. Run all of it before committing.
 
 1. **Reproduce the fosforo set.** The 20 files the bash script produced are on disk at `~/Music/fosforo-test-tones/`. Render into a scratch directory with fosforo's parameters:
 
@@ -117,7 +117,7 @@ Nothing in this repo has a test suite, and `tools/sampler-nulltest/CLAUDE.md` sa
 
 4. **Prove the silent-channel assertion catches a real failure.** Temporarily render `pan-hard-right` into both channels and confirm it fails.
 
-5. **Exercise the parameterisation.** Run with `--only sines --sines 440 --sr 44100 --seconds 1` and confirm the odd frequency reports its shortfall against the analytic bound in step 2 of the verification design rather than failing.
+5. **Exercise the parameterization.** Run with `--only sines --sines 440 --sr 44100 --seconds 1` and confirm the odd frequency reports its shortfall against the analytic bound in step 2 of the verification design rather than failing.
 
 6. **Check the filename tokens.** Confirm `--levels 0.010 1.000` produces `level-0.010.wav` and `level-1.000.wav`, not `level-0.01.wav`.
 
@@ -127,14 +127,14 @@ Nothing in this repo has a test suite, and `tools/sampler-nulltest/CLAUDE.md` sa
 
 Conventional Commits, lowercase imperative subjects describing the effect, GPG signed, with the issue number for auto-linking. Bodies are long and hard-wrapped near 80 columns, explaining the reasoning and what was deliberately not changed. Smallest logical units:
 
-1. `feat: add a parameterised test-signal generator (#1)`, the script and the `.gitignore` entry.
-2. `docs: document the test-signal generator and its rationale (#1)`, `README.md` and `CLAUDE.md`.
+1. `feat: add a parameterized test-signal generator (#1)`, the script and the `.gitignore` entry.
+2. `docs: document the test-signal generator and its rationale (#1)`, `README.md` and `AGENTS.md`.
 
 ## Follow-ups, not part of this branch
 
 Both are done.
 
-- **Comment on audio-tools#1** recording that fosforo#64 supersedes the companion-analyser paragraph. Posted.
+- **Comment on audio-tools#1** recording that fosforo#64 supersedes the companion-analyzer paragraph. Posted.
 - **File an issue in cboone/fosforo** to drop the script once this lands, filed as [cboone/fosforo#67](https://github.com/cboone/fosforo/issues/67): delete `scripts/make-test-tones`, delete the single `make-test-tones,` token from the brace list in `.editorconfig` lines 39–53, and add a pointer note to the two plan documents that reference it, `docs/plans/done/2026-08-20-draw-a-crude-aliased-trace.md` (lines 306 and 403) and `docs/plans/done/2026-08-26-accumulate-the-beam-into-a-persistent-texture.md` (lines 253 and 312). Both are in `done/` and are kept as historical records, so a note is more appropriate than a rewrite. If fosforo's `chore/scripts` branch merges first, its new `AGENTS.md` entry for the script needs the same treatment.
 
 ## Optional, flag if unwanted
@@ -149,7 +149,7 @@ Every verification step above was run and passed. Three things came out differen
 
 **The shortfall report needed a threshold.** The plan said to report a peak falling short of the requested level. As first written it reported any shortfall above `TOLERANCE`, which printed `0.00% under 0.5` for the few parts per million a frequency whose crest falls between samples is short by. A line that says nothing trains the reader to skip the line that matters, so reporting now starts at 0.01%, the first shortfall the two-decimal figure can express. `REPORT_UNDER` carries that with the reasoning.
 
-**Fault injection was done on copies, not by editing and reverting.** Steps 3 and 4 said to modify the script temporarily. Mutating a copy in the scratchpad instead means the working tree is never in a broken state, and it made it cheap to run four faults rather than two: `int16`, clamping to unity, an unpanned pan file, and a level louder than requested. Each exits 1 with a message naming the file and both numbers; the unmutated control exits 0. The four cases are listed in `tools/test-signals/CLAUDE.md` so the next change can repeat them.
+**Fault injection was done on copies, not by editing and reverting.** Steps 3 and 4 said to modify the script temporarily. Mutating a copy in the scratchpad instead means the working tree is never in a broken state, and it made it cheap to run four faults rather than two: `int16`, clamping to unity, a pan file rendered into both channels, and a level louder than requested. Each exits 1 with a message naming the file and both numbers; the unmodified control exits 0. The four cases are listed in `tools/test-signals/AGENTS.md` so the next change can repeat them.
 
 **"Divides the sample rate evenly" was the wrong condition, and it was written into four files.** The plan and the first draft of the docs both explained the shortfall by saying a frequency dividing the sample rate loses nothing. That is false. The crest of a phase-zero sine sits at phase `pi/2`, so a sample lands on it exactly when `sr / (4 * f)`, in lowest terms, has an odd denominator. 1600 Hz divides 48 kHz exactly 30 times and still peaks 0.55% low, because `48000 / 6400` is 15/2. The prose also mixed the worst-case bound with measured shortfalls, quoting 0.2% at 1 kHz, which is the bound, beside 13.40% at 16 kHz, which is the actual. Both corrected everywhere; the code was always right, only the explanation was wrong.
 
