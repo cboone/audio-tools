@@ -62,10 +62,12 @@ This is not a formality. It separates "the sampler changed my sample" from "my b
 A pass reads like this:
 
 ```text
-VERDICT: bit-identical. The sampler is transparent.
+VERDICT: bit-identical. The signal path is transparent.
          Every sample that lines up matches. What differs is a 1-to-2 channel
          expansion, every bounce channel matching the source exactly.
 ```
+
+The verdict says "signal path" rather than "sampler" because the tool only ever compares two files and has no idea what produced the second one. At this step that path is the bounce chain alone, and a pass here says nothing yet about any instrument.
 
 Anything else is the chain, not the instrument. Likely causes in rough order of frequency: pan law, dither, project rate not matching the file, a plugin on the output, a fader not quite at 0.0.
 
@@ -103,7 +105,7 @@ Mono or stereo makes no difference to the verdict, and stereo is marginally the 
 uv run nulltest.py probe-48000/probe_noise.wav bounce.wav -o sampler.png
 ```
 
-- **Bit-identical**, with or without offsets named in the verdict: done. The sampler is transparent under those settings.
+- **Bit-identical**, with or without offsets named in the verdict: done. Nothing between the source file and the bounce altered the signal under those settings, and since the control test already cleared the bounce chain, that verdict belongs to the instrument.
 - **Fractional delay near zero and `|B/A|` flat at 0 dB**: transparent apart from level. Read `level` for how much.
 - **Fractional delay non-zero plus a cliff below Nyquist**: sample rate conversion or transposition. The cliff is the anti-imaging filter.
 - **Fractional delay non-zero but `|B/A|` flat**: more likely a minimum-phase filter's group delay than resampling. The panel is what tells them apart.

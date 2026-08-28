@@ -349,7 +349,20 @@ def main():
         sys.exit("files are too short to analyze")
 
     shape_a, shape_b = xa.shape, xb.shape
-    delay = integer_delay(xa.mean(axis=1), xb.mean(axis=1))
+
+    # Measure the delay on the channel pair where both sides carry the most
+    # energy, rather than on the channel mean. Anti-phase content between
+    # channels, which is exactly what a one-sided polarity inversion produces,
+    # cancels in the mean and leaves the cross-correlation reading digital
+    # silence. It then reports a delay of zero and every per-channel figure
+    # downstream gets measured against a misalignment. Taking the minimum of
+    # the two energies keeps the choice off a pair whose other side is silent,
+    # since correlating against silence is the failure being avoided.
+    prelim, _, _ = channel_pairs(xa, xb)
+    ref_a, ref_b = max(
+        ((ca, cb) for _, ca, cb in prelim),
+        key=lambda p: min(float(np.dot(p[0], p[0])), float(np.dot(p[1], p[1]))))
+    delay = integer_delay(ref_a, ref_b)
     xa, xb = align(xa, xb, delay)
     print(f"integer delay    : {delay:+d} samples "
           f"({1000.0 * delay / sr:+.4f} ms)   [+ = bounce late]")
@@ -373,7 +386,10 @@ def main():
     pairs_exact = all(np.array_equal(ca, cb) for _, ca, cb in pairs)
 
     if pairs_exact and not extra_a and not unchecked_b:
-        print("\nVERDICT: bit-identical. The sampler is transparent.")
+        # "The signal path", not "the sampler": this compares two files and has
+        # no idea what produced the second one. The control test in the README
+        # deliberately has no sampler in it at all.
+        print("\nVERDICT: bit-identical. The signal path is transparent.")
         aside = []
         if delay:
             aside.append(f"a {delay:+d}-sample start offset, which is playback "
