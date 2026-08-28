@@ -15,6 +15,10 @@ audio-tools/
 │       ├── nulltest.py      # The analysis
 │       ├── maketest.py      # Probe signal generator
 │       └── probe/           # Committed 48 kHz probes, reproducible from maketest.py
+│   └── test-signals/        # Exact tones, levels, pans and transients for checking a display
+│       ├── AGENTS.md        # Tool-specific agent instructions (CLAUDE.md symlinks here)
+│       ├── README.md        # Usage, the four output decisions, how verification works
+│       └── maketones.py     # The generator, which reads every file back after writing it
 ├── tests/scrut/             # Scrut CLI snapshot tests
 └── docs/plans/              # Plan documents: todo/ is active, done/ is historical
 ```

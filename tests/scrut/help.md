@@ -56,3 +56,40 @@ options:
 $ "${MAKETEST_BIN}" -h | head -1
 usage: maketest.py [-h] [--sr SR] [--outdir OUTDIR]
 ```
+
+## maketones.py advertises every flag
+
+`maketones.py` has seventeen options against the other tools' two, and
+`argparse` wraps the usage line to the terminal width, which is not ours to
+control: at `COLUMNS=40` the first line is just `usage: maketones.py [-h]`.
+Snapshotting the layout would therefore pin the environment rather than the
+interface. This pins the interface instead, and the extracted list is identical
+at 40, 80 and 200 columns.
+
+```scrut
+$ "${MAKETONES_BIN}" --help | grep -oE '^  --[a-z-]+' | sed 's/^ *//' | sort
+--burst-level
+--burst-ms
+--burst-rate
+--click-hz
+--click-level
+--click-ms
+--click-rate
+--level-hz
+--levels
+--only
+--outdir
+--pan-level
+--saws
+--seconds
+--sine-level
+--sines
+--sr
+```
+
+## maketones.py short help flag
+
+```scrut
+$ "${MAKETONES_BIN}" -h | head -1 | cut -c1-19
+usage: maketones.py
+```

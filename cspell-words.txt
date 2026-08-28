@@ -12,10 +12,18 @@ Hann
 hanning
 lowpass
 nyquist
+readback
 requantization
 resampling
 sidelobe
+ungated
 unwindowed
+
+# ffmpeg, named in tools/test-signals/ as the approach it replaced
+aevalsrc
+astats
+filterchain
+lavfi
 
 # Libraries and file formats
 CFFI
@@ -31,10 +39,12 @@ wavfile
 # numpy / scipy / matplotlib API identifiers
 axhline
 darkorange
+dtype
 figsize
 fontsize
 iinfo
 irfft
+isfinite
 issubdtype
 rfft
 rfftfreq
@@ -47,9 +57,11 @@ ylabel
 ylim
 
 # Python tooling
+dataclasses
 isort
 metavar
 noqa
+pathlib
 pipx
 pycache
 pycodestyle
@@ -62,18 +74,23 @@ venv
 # This project
 cboone
 maketest
+maketones
 nulltest
 resid
 scrut
 suba
 subb
 
-# Other repos referenced in docs/plans/
+# Other repos referenced in the docs
+fosforo
+Fósforo
+iface
 yeung
 zhang
 
 # Misc
 cooldown
 lockfiles
+rasterizer
 Taplo
 worktree

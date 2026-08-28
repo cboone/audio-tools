@@ -84,3 +84,4 @@ jobs:
       scrut-env: |
         NULLTEST_BIN=./tools/sampler-nulltest/nulltest.py
         MAKETEST_BIN=./tools/sampler-nulltest/maketest.py
+        MAKETONES_BIN=./tools/test-signals/maketones.py

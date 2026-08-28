@@ -8,6 +8,7 @@ RUFF_VERSION := 0.16.5
 
 NULLTEST_BIN := $(CURDIR)/tools/sampler-nulltest/nulltest.py
 MAKETEST_BIN := $(CURDIR)/tools/sampler-nulltest/maketest.py
+MAKETONES_BIN := $(CURDIR)/tools/test-signals/maketones.py
 SCRUT_TESTS := tests/scrut/
 
 .PHONY: node-tools lint fmt fmt-fix text-lint text-fix test-scrut test-scrut-update test-all help
@@ -45,10 +46,12 @@ test-scrut: ## Run scrut CLI tests
 		exit 1; \
 	fi
 	NULLTEST_BIN="$(NULLTEST_BIN)" MAKETEST_BIN="$(MAKETEST_BIN)" \
+		MAKETONES_BIN="$(MAKETONES_BIN)" \
 		scrut test $(SCRUT_TESTS)
 
 test-scrut-update: ## Update scrut test expectations
 	NULLTEST_BIN="$(NULLTEST_BIN)" MAKETEST_BIN="$(MAKETEST_BIN)" \
+		MAKETONES_BIN="$(MAKETONES_BIN)" \
 		scrut update --replace --assume-yes $(SCRUT_TESTS)
 
 test-all: lint fmt text-lint test-scrut ## Run every check

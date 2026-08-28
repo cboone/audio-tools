@@ -219,6 +219,7 @@ __marimo__/
 
 # Tool output
 tools/sampler-nulltest/*.png
+tools/test-signals/*.wav
 
 # Node
 #   The repo is not a JavaScript project. package.json exists only to pin the
