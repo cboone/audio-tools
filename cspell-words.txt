@@ -48,7 +48,9 @@ ylim
 
 # Python tooling
 isort
+metavar
 noqa
+pipx
 pycache
 pycodestyle
 pyflakes

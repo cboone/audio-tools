@@ -62,3 +62,25 @@ jobs:
   github-lint:
     name: Actionlint
     uses: cboone/gh-actions/.github/workflows/lint-github-actions.yml@91f9abd25d4f82354c0f950dfc8b6d7525b0f5b5 # v3.0.0
+
+  test-scrut:
+    # Both tools are `uv run --script` shebangs, so uv has to be on PATH before
+    # scrut runs anything.
+    #
+    # pipx rather than `pip install --user`: the runner's system Python is
+    # externally managed (PEP 668), so a plain --user install errors out. pipx
+    # is preinstalled on the GitHub images and exists for exactly this.
+    #
+    # pipx rather than the upstream `curl | sh` installer: the version stays
+    # pinned and explicit instead of tracking whatever astral.sh serves today.
+    #
+    # $GITHUB_PATH persists across steps within the job, so the scrut step
+    # further down finds uv.
+    uses: cboone/gh-actions/.github/workflows/run-scrut-tests.yml@91f9abd25d4f82354c0f950dfc8b6d7525b0f5b5 # v3.0.0
+    with:
+      scrut-test-dir: "tests/scrut/"
+      scrut-setup-cmd: >-
+        pipx install 'uv==0.12.7' && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      scrut-env: |
+        NULLTEST_BIN=./tools/sampler-nulltest/nulltest.py
+        MAKETEST_BIN=./tools/sampler-nulltest/maketest.py
