@@ -56,10 +56,3 @@ Ruff configuration lives in `ruff.toml`. Two rule choices are intentional and sh
 
 - **`N806` is disabled.** Spectral-domain variables (`A`, `B`, `H`, `Sa`, `Sr`, `T`) match the notation in the tool READMEs, where the transfer function is written `H = B/A`. Lowercasing them breaks the correspondence between the code and its documentation.
 - **`BLE` is selected.** Selecting it is what makes the existing `# noqa: BLE001` directives meaningful. Those bare `except Exception` handlers are load-bearing; see `tools/sampler-nulltest/AGENTS.md` for the specific reason.
-
-## Conventions
-
-- Conventional Commits for commit messages and PR titles.
-- All commits are GPG signed.
-- Never `git commit --amend`; create a new commit instead.
-- Prefer frequent small commits at each logical boundary.
