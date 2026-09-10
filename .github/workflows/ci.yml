@@ -61,7 +61,7 @@ jobs:
 
   github-lint:
     name: Actionlint
-    uses: cboone/gh-actions/.github/workflows/lint-github-actions.yml@91f9abd25d4f82354c0f950dfc8b6d7525b0f5b5 # v3.0.0
+    uses: cboone/gh-actions/.github/workflows/lint-github-actions.yml@844bf31d4ec26df9d0aa531e79d8c3fccf9f0638 # v3.1.0
 
   test-scrut:
     # Every tool is a `uv run --script` shebang, so uv has to be on PATH before
@@ -76,7 +76,7 @@ jobs:
     #
     # $GITHUB_PATH persists across steps within the job, so the scrut step
     # further down finds uv.
-    uses: cboone/gh-actions/.github/workflows/run-scrut-tests.yml@91f9abd25d4f82354c0f950dfc8b6d7525b0f5b5 # v3.0.0
+    uses: cboone/gh-actions/.github/workflows/run-scrut-tests.yml@844bf31d4ec26df9d0aa531e79d8c3fccf9f0638 # v3.1.0
     with:
       scrut-test-dir: "tests/scrut/"
       scrut-setup-cmd: >-
