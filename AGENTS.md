@@ -50,7 +50,7 @@ make test-scrut-update  # regenerate scrut snapshots after intentional changes
 make test-all           # everything
 ```
 
-The root `package.json` does not make this a JavaScript project. It pins `markdownlint-cli2`, `prettier` and `cspell` so `make text-lint` and `.github/workflows/text-lint.yml` run identical versions. Those steps are inline rather than a call to the shared `lint-text.yml`, which is unusable here until cboone/gh-actions#83 ships in a release. Do not add runtime JavaScript dependencies to `package.json`.
+The root `package.json` does not make this a JavaScript project. It pins `markdownlint-cli2`, `prettier` and `cspell` so `make text-lint` and `.github/workflows/text-lint.yml` run identical versions. Those steps are inline rather than a call to the shared `lint-text.yml`, which fails here on its default inputs: it reads `github.job_workflow_sha`, which arrives empty, before any linter runs. That is cboone/gh-actions#83, still open at v3.1.0. At v3.1.0 the step reading that value is guarded, and `use-consumer-versions: true` skips it when `preset` is empty and `run-yamllint` is false, which is exactly what the pinned `package.json` and committed lockfile here already support. That reading comes from the workflow's guards rather than a measured run, so confirm it on a real run before dropping the inlined steps. Do not add runtime JavaScript dependencies to `package.json`.
 
 Ruff configuration lives in `ruff.toml`. Two rule choices are intentional and should not be "cleaned up":
 
